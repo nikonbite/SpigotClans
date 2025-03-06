@@ -1,0 +1,135 @@
+[general]
+no_permission = "&cУ вас недостаточно прав для выполнения данной команды!"
+not_enough_money = "&cВам не хватает &b{amount} СтарКоинов&c."
+not_in_clan = "&cВы не состоите в клане."
+
+[clan]
+header = "&bПомощь по команде /clan:"
+
+[clan.create]
+usage = "&b/clan create [имя] &7-&6 Создать клан"
+no_permission = "&cСоздать клан может только &eКвазар&c."
+success = "&aВы успешно создали клан {name}!"
+name_longer_than_max = "&cМаксимальное количество букв в названии клана: &6{max}&c."
+
+[clan.rename]
+usage = "&b/clan rename [новое имя] &7-&6 Переименовать клан"
+no_permission = "&cПереименовать клан может только &eАдмирал&c."
+request = """
+&cВы уверены, что хотите переименовать клан {old_name}&c в {name}&c за &b{cost} СтарКоинов&c?
+&f
+&cЧтобы подтвердить смену названия напишите в чат &b/clan confirm&c, при отмене действия &b/clan recall&c.
+"""
+success = "&aВы успешно переименовали клан {old_name} в {name}!"
+name_longer_than_max = "&cМаксимальное количество букв в названии клана: &6{max}&c."
+
+[clan.disband]
+usage = "&b/clan disband &7-&6 Распустить клан"
+no_permission = "&cРаспустить клан может только &eАдмирал&c."
+request = """
+&cВы уверены, что хотите расформировать клан {name}&c?
+&f
+&cЧтобы подтвердить удаление клана напишите в чат &b/clan confirm&c, при отмене действия &b/clan recall&c.
+"""
+success = "&aВы успешно распустили клан {name}!"
+
+[clan.leave]
+usage = "&b/clan leave &7-&6 Покинуть клан"
+
+[clan.invite]
+usage = "&b/clan invite [игрок] &7-&6 Пригласить игрока в клан"
+
+[clan.cancel]
+usage = "&b/clan cancel [игрок] &7-&6 Отменить предложение"
+
+[clan.kick]
+usage = "&b/clan kick [игрок] &7-&6 Выгнать игрока из клана"
+
+[clan.invites]
+usage = "&b/clan invites &7-&6 Открыть меню приглашений"
+
+[clan.info]
+usage = "&b/clan info (клан) &7-&6 Посмореть информацию о клане"
+
+[clan.top]
+usage = "&b/clan top &7-&6 Посмотреть топ кланов"
+
+[clan.score]
+usage = "&b/clan score [игрок] &7-&6 Посмотреть количество клановых очков игрока"
+
+[clan.topmembers]
+usage = "&b/clan topmembers &7-&6 Посмотреть топ лучших участников клана"
+
+[clan.antitopmembers]
+usage = "&b/clan antitopmembers &7-&6 Посмотреть топ худших участников клана"
+
+[clan.news]
+usage = "&b/clan news &7-&6 Посмотреть последние новости клана"
+
+[clan.list]
+usage = "&b/clan list (игрок) &7-&6 Посмотреть список игроков клана"
+
+[clan.online]
+usage = "&b/clan online (игрок) &7-&6 Посмотреть онлайн игроков клана"
+
+[clan.admiral]
+usage = "&b/clan admiral [игрок] &7-&6 Передать Адмирала соклановцу"
+
+[clan.donate]
+usage = "&b/clan donate [сумма] &7-&6 Пополнить казну клана"
+
+[clan.shop]
+usage = "&b/clan shop &7-&6 Открыть магазин клана"
+
+[clan.promote]
+usage = "&b/clan promote [игрок] (звание) &7-&6 Повысить звание соклановца"
+
+[clan.demote]
+usage = "&b/clan demote [игрок] (звание) &7-&6 Понизить звание соклановца"
+
+[clan.chat]
+usage = "&b/clan chat [сообщение] &7-&6 Написать сообщение в чат клана"
+
+[clan.party]
+usage = "&b/clan party [сообщение] &7-&6 Отправить приглашение в тусовку всем соклановцам"
+
+[clan.motd]
+usage = "&b/clan motd <set/clear/check> &7-&6 Управление MOTD клана"
+usage_set = "&b/clan motd set [1-5] [сообщение] &7-&6 Установить текст на конкретной строке в MOTD"
+usage_clear = "&b/clan motd clear (1-5) &7-&6 Очистить текст на конкретной строке/весь текст в MOTD"
+usage_check = "&b/clan motd check &7-&6 Предварительный просмотр MOTD клана"
+
+[clan.ad]
+usage = "&b/clan ad &7-&6 Список кланов, которые купили рекламу"
+
+[clan.ade]
+usage = "&b/clan ade &7-&6 Отредактировать рекламу клана"
+
+# Административная секция
+
+[aclan]
+header = "&bПомощь по команде /aclan:"
+
+[aclan.kick]
+usage = "&b/aclan kick [игрок] &7-&6 Принудительно удалить участника из клана"
+
+[aclan.disband]
+usage = "&b/aclan disband [клан] &7-&6 Принудительно удалить участника из клана"
+
+[aclan.clearmotd]
+usage = "&b/aclan clearmotd [клан] &7-&6 Принудительно удалить участника из клана"
+
+[aclan.promote]
+usage = "&b/aclan promote [игрок] &7-&6 Принудительно повысить участника клана"
+
+[aclan.demote]
+usage = "&b/aclan demote [игрок] &7-&6 Принудительно понизить участника клана"
+
+[aclan.shop]
+usage = "&b/aclan shop [клан] &7-&6 Принудительно взаимодействовать с магазином клана, не тратя валюту"
+
+[aclan.npc]
+usage = "&b/aclan <spawn/remove/list/name/skin> &7-&6 Взаимодействие с рекламными NPC"
+
+[aclan.ad]
+usage = "&b/aclan ad <remove/invites> [клан] &7-&6 Взаимодействие с рекламой клана"

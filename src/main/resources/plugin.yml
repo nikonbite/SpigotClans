@@ -1,0 +1,11 @@
+name: mMarketClans
+main: org.mmarket.clans.ClansPlugin
+version: 1.0
+author: mMarket
+api-version: '1.16'
+description: Плагин на кланы
+depend: [
+  "PlaceholderAPI",
+  "Vault",
+  "Citizens"
+]
