@@ -34,6 +34,16 @@ dependencies {
 
     // Citizens
     compileOnly("net.citizensnpcs", "citizens-main", "2.0.35-SNAPSHOT") { exclude(group = "*", module = "*") }
+
+    // MySQL Driver
+    implementation("com.mysql:mysql-connector-j:9.2.0")
+
+    // Exposed
+    implementation("org.jetbrains.exposed:exposed-core:0.60.0")
+    implementation("org.jetbrains.exposed:exposed-dao:0.60.0")
+    implementation("org.jetbrains.exposed:exposed-jdbc:0.60.0")
+    implementation("org.jetbrains.exposed:exposed-java-time:0.60.0")
+    implementation("org.jetbrains.exposed:exposed-kotlinx-coroutines:0.60.0")
 }
 
 kotlin { jvmToolchain(17) }
