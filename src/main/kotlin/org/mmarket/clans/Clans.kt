@@ -9,6 +9,7 @@ import org.bukkit.event.Listener
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.mmarket.clans.command.AclanCommand
 import org.mmarket.clans.command.CcCommand
@@ -20,7 +21,6 @@ import org.mmarket.clans.system.table.ClanInvitesTable
 import org.mmarket.clans.system.table.ClanMembersTable
 import org.mmarket.clans.system.table.ClansTable
 import java.time.LocalDateTime
-import kotlin.math.log
 
 class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     private var loaded = false
@@ -86,13 +86,13 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
 
         val vault = "Vault"
         if (server.pluginManager.isPluginEnabled(vault)) {
-            VaultHook()
+            VaultHook.init()
             logger.info("$prefix Связка с $vault успешно установлена.")
         }
 
         val citizens = "Citizens"
         if (server.pluginManager.isPluginEnabled(citizens)) {
-            CitizensHook()
+            CitizensHook.init()
             logger.info("$prefix Связка с $citizens успешно установлена.")
         }
     }
@@ -139,12 +139,12 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         logger.info("$prefix Запускаем работу \"Очистка заявок\"...")
         CoroutineScope(Dispatchers.Default).launch {
             while (true) {
-                delay(24 * 60 * 60 * 1000) // Каждые 24 часа
-/*                transaction {
+                delay(24 * 60 * 60 * 1000)
+                transaction {
                     ClanInvitesTable.deleteWhere {
                         createdAt lessEq LocalDateTime.now().minusDays(7)
                     }
-                }*/
+                }
             }
         }
         logger.info("$prefix Работа \"Очистка заявок\" запущена.")

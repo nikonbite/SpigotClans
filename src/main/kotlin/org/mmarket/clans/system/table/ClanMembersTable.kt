@@ -8,7 +8,7 @@ import org.mmarket.clans.system.model.ClanMemberRole
 object ClanMembersTable : Table("clan_members") {
     val id = integer("id").autoIncrement()
     val clanId = reference("clan_id", ClansTable.id, onDelete = ReferenceOption.CASCADE)
-    val memberName = varchar("member_name", 16)
+    val uuid = uuid("uuid").uniqueIndex()
     val role = enumeration("role", ClanMemberRole::class)
     val joinedAt = datetime("joined_at")
 
