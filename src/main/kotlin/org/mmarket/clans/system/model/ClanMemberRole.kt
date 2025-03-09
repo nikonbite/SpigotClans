@@ -4,5 +4,5 @@ enum class ClanMemberRole(role: String) {
     RECRUIT("Рекрут"),
     SENIOR("Старшина"),
     COMMODORE("Коммодор"),
-    ADMIRAL("Адмирал")
+    ADMIRAL("Адмирал");
 }

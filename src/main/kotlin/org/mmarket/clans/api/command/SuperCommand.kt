@@ -32,6 +32,6 @@ abstract class SuperCommand(val names: List<String>, val subcommands: List<Super
             return
         }
 
-        subcommand.perform(player, args)
+        subcommand.perform(player, args.drop(0))
     }
 }

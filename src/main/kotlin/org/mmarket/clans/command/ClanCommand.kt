@@ -1,8 +1,16 @@
 package org.mmarket.clans.command
 
 import org.bukkit.entity.Player
+import org.mmarket.clans.Clans
 import org.mmarket.clans.api.command.SuperCommand
 import org.mmarket.clans.api.command.SuperSubcommand
+import org.mmarket.clans.api.utility.NamingUtility.removeColors
+import org.mmarket.clans.api.utility.NamingUtility.validateClanName
+import org.mmarket.clans.files.Messages.message
+import org.mmarket.clans.files.Settings
+import org.mmarket.clans.hook.VaultHook
+import org.mmarket.clans.system.manager.ClanManager
+import java.util.UUID
 
 class ClanCommand : SuperCommand(
     listOf("clan", "сдфт"),
@@ -43,21 +51,83 @@ class ClanCommand : SuperCommand(
 
     }
 
+    object Utils {
+        fun inClan(player: Player): Boolean {
+            return if (ClanManager.Members.inClan(player.uniqueId)) {
+                player.message("general.already_in_clan")
+                true
+            } else false
+        }
+
+        fun notInClan(player: Player): Boolean {
+            return if (!ClanManager.Members.inClan(player.uniqueId)) {
+                player.message("general.not_in_clan")
+                true
+            } else false
+        }
+
+        fun isNameInvalid(name: String, player: Player): Boolean {
+            return if (!validateClanName(name)) {
+                player.message("clan.create.name_is_not_match")
+                true
+            } else false
+        }
+
+        fun doNotHasNeededAmount(amount: Double, player: Player): Boolean {
+            return if (!VaultHook.has(player, amount)) {
+                val required = amount - VaultHook.balance(player)
+                player.message("general.not_enough_money", mapOf("{amount}" to "$required"))
+                return true
+            } else false
+        }
+
+        fun doNotHasPermission(perm: String, player: Player): Boolean {
+            return if (player.hasPermission(perm)) {
+                player.message("general.no_permission")
+                true
+            } else false
+        }
+    }
+
     /** Создать клан */
     class CreateSubcommand : SuperSubcommand(listOf("create", "скуфеу")) {
         override fun perform(player: Player, args: List<String>) {
+            // Состоит ли игрок в клане
+            if (Utils.inClan(player)) return
 
+            // Имеет ли игрок право на создание
+            if (Utils.doNotHasPermission(Settings.string("permissions.create"), player)) return
+
+            // Есть ли у игрока необходимая сумма для создания
+            if (Utils.doNotHasNeededAmount(Settings.double("pricing.create"), player)) return
+
+            // Валидация имени клана на соответствие требованиям
+            val clanName = args[0]
+            if (Utils.isNameInvalid(clanName, player)) return
+
+            // Создание клана
+            val colorlessClanName = removeColors(clanName)
+            ClanManager.create(clanName, colorlessClanName, player.uniqueId)
+            player.message("clan.create.success", mapOf("name" to clanName))
         }
     }
 
     /** Переименовать клан */
     class RenameSubcommand : SuperSubcommand(listOf("rename", "кутфьу")) {
         override fun perform(player: Player, args: List<String>) {
+            // Состоит ли игрок в клане
+            if (Utils.notInClan(player)) return
+
+            val role = ClanManager.Members.role(player.uniqueId)
+            if (role == null) {
+                return
+            }
+
 
         }
     }
 
-    /** Переименовать клан */
+    /** Расформировать клан */
     class DisbandSubcommand : SuperSubcommand(listOf("disband", "вшыифтв")) {
         override fun perform(player: Player, args: List<String>) {
 
@@ -217,7 +287,7 @@ class ClanCommand : SuperCommand(
 
         }
     }
-    
+
     /** Отредактировать купленную рекламу */
     class AdeSubcommand : SuperSubcommand(listOf("ade", "фву")) {
         override fun perform(player: Player, args: List<String>) {

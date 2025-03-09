@@ -5,13 +5,14 @@ user = "root"        # Пользователь
 data = "clans"       # База данных
 
 [pricing]
-create = 70_000   # Создание клана
-rename = 50_000   # Переименование клана
+create = 70_000.0   # Создание клана
+rename = 50_000.0   # Переименование клана
 
 [permissions]
 create = "clan.create"   # Право на создание клана
 
 [restrictions]
+min_name_length = 12   # Минимальное кол-во символов в имени клана (только буквы, без учёта цвета)
 max_name_length = 12   # Максимальное кол-во символов в имени клана (только буквы, без учёта цвета)
 
 [actions]             # RECRUIT, SENIOR, COMMODORE, ADMIRAL

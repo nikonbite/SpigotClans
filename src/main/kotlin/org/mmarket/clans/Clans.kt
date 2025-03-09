@@ -14,9 +14,12 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.mmarket.clans.command.AclanCommand
 import org.mmarket.clans.command.CcCommand
 import org.mmarket.clans.command.ClanCommand
+import org.mmarket.clans.files.Messages
+import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.CitizensHook
 import org.mmarket.clans.hook.PlaceholderApiHook
 import org.mmarket.clans.hook.VaultHook
+import org.mmarket.clans.system.manager.ClanManager
 import org.mmarket.clans.system.table.ClanInvitesTable
 import org.mmarket.clans.system.table.ClanMembersTable
 import org.mmarket.clans.system.table.ClansTable
@@ -38,6 +41,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         instance = this
 
         info()
+        files()
         hook()
         database()
         commands(
@@ -49,6 +53,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
 
         )
         jobs()
+        clans()
 
         logger.info("=".repeat(50))
 
@@ -56,7 +61,8 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     }
 
     fun reload() {
-
+        Settings.reload()
+        Messages.reload()
     }
 
     fun unload() {
@@ -73,6 +79,18 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
             "Developer: Nikonbite",
             "=".repeat(50),
         ).forEach { logger.info(it) }
+    }
+
+    private fun files() {
+        val prefix = prefix("Files")
+
+        logger.info("$prefix Идёт загрузка сообщений...")
+        Messages.init()
+        logger.info("$prefix Сообщения успешно загружены.")
+
+        logger.info("$prefix Идёт загрузка настроек...")
+        Settings.init()
+        logger.info("$prefix Настройки успешно загружены.")
     }
 
     private fun hook() {
@@ -148,6 +166,13 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
             }
         }
         logger.info("$prefix Работа \"Очистка заявок\" запущена.")
+    }
+
+    fun clans() {
+        val prefix = prefix("Clans")
+        logger.info("$prefix Идёт загрузка кланов...")
+        ClanManager.init()
+        logger.info("$prefix Кланы успешно загружены...")
     }
 
     private fun prefix(name: String) = "( $name ) ::"

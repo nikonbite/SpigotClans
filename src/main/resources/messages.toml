@@ -2,6 +2,7 @@
 no_permission = "&cУ вас недостаточно прав для выполнения данной команды!"
 not_enough_money = "&cВам не хватает &b{amount} СтарКоинов&c."
 not_in_clan = "&cВы не состоите в клане."
+already_in_clan = "&cВы уже состоите в клане."
 
 [clan]
 header = "&bПомощь по команде /clan:"
@@ -10,7 +11,7 @@ header = "&bПомощь по команде /clan:"
 usage = "&b/clan create [имя] &7-&6 Создать клан"
 no_permission = "&cСоздать клан может только &eКвазар&c."
 success = "&aВы успешно создали клан {name}!"
-name_longer_than_max = "&cМаксимальное количество букв в названии клана: &6{max}&c."
+name_is_not_match = "&cЗаданное наименование не соответствует требованиям."
 
 [clan.rename]
 usage = "&b/clan rename [новое имя] &7-&6 Переименовать клан"
