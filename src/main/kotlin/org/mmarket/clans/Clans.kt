@@ -137,11 +137,18 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         val prefix = prefix("Database")
 
         logger.info("$prefix Устанавливаем соединение с базой данных...")
+
+        val host = Settings.string("database.host")
+        val port = Settings.long("database.port")
+        val user = Settings.string("database.user")
+        val pass = Settings.string("database.pass")
+        val data = Settings.string("database.data")
+
         Database.connect(
-            url = "jdbc:mysql://localhost:3306/mydatabase",
+            url = "jdbc:mysql://${host}:${port}/${data}?nullCatalogMeansCurrent=true&useInformationSchema=false",
             driver = "com.mysql.cj.jdbc.Driver",
-            user = "root",
-            password = "password"
+            user = user,
+            password = pass
         )
 
         logger.info("$prefix Подготавливаем таблицы...")

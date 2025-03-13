@@ -76,13 +76,13 @@ class ClanCommand : SuperCommand(
         fun doNotHasNeededAmount(amount: Double, player: Player): Boolean {
             return if (!VaultHook.has(player, amount)) {
                 val required = amount - VaultHook.balance(player)
-                player.message("general.not_enough_money", mapOf("{amount}" to "$required"))
+                player.message("general.not_enough_money", mapOf("amount" to "${required}"))
                 return true
             } else false
         }
 
         fun doNotHasPermission(perm: String, player: Player): Boolean {
-            return if (player.hasPermission(perm)) {
+            return if (!player.hasPermission(perm)) {
                 player.message("general.no_permission")
                 true
             } else false

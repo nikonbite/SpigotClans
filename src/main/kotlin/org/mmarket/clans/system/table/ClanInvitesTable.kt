@@ -4,7 +4,7 @@ import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.datetime
 
-object ClanInvitesTable : Table() {
+object ClanInvitesTable : Table("clan_invites") {
     val id = integer("id").autoIncrement()
     val clanId = reference("clan_id", ClansTable.id, onDelete = ReferenceOption.CASCADE)
     val uuid = uuid("uuid")

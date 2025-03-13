@@ -2,6 +2,7 @@
 host = "localhost"   # Хост
 port = 3306          # Порт
 user = "root"        # Пользователь
+pass = "root"        # Пароль
 data = "clans"       # База данных
 
 [pricing]

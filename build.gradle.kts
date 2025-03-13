@@ -43,7 +43,9 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:0.60.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.60.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.60.0")
-    implementation("org.jetbrains.exposed:exposed-kotlinx-coroutines:0.60.0")
+
+    // Gson
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 kotlin { jvmToolchain(17) }
@@ -73,6 +75,8 @@ tasks {
         jvmArgs("-DPaper.IgnoreJavaVersion=true")
         downloadPlugins {
             url("https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar")
+            url("https://ci.citizensnpcs.co/job/citizens2/lastSuccessfulBuild/artifact/dist/target/Citizens-2.0.37-b3755.jar")
+            hangar("PlaceholderAPI", "2.11.6")
             modrinth("essentialsx", "2.20.1")
         }
     }
