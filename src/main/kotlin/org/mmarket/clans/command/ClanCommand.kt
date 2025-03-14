@@ -10,7 +10,7 @@ import org.mmarket.clans.files.Messages.message
 import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.VaultHook
 import org.mmarket.clans.system.manager.ClanManager
-import java.util.UUID
+import org.mmarket.clans.system.model.ClanMemberRole
 
 class ClanCommand : SuperCommand(
     listOf("clan", "сдфт"),
@@ -76,7 +76,7 @@ class ClanCommand : SuperCommand(
         fun doNotHasNeededAmount(amount: Double, player: Player): Boolean {
             return if (!VaultHook.has(player, amount)) {
                 val required = amount - VaultHook.balance(player)
-                player.message("general.not_enough_money", mapOf("amount" to "${required}"))
+                player.message("general.not_enough_money", mapOf("amount" to "$required"))
                 return true
             } else false
         }
@@ -113,7 +113,7 @@ class ClanCommand : SuperCommand(
     }
 
     /** Переименовать клан */
-    class RenameSubcommand : SuperSubcommand(listOf("rename", "кутфьу")) {
+    class RenameSubcommand() : SuperSubcommand(listOf("rename", "кутфьу")) {
         override fun perform(player: Player, args: List<String>) {
             // Состоит ли игрок в клане
             if (Utils.notInClan(player)) return
@@ -123,7 +123,36 @@ class ClanCommand : SuperCommand(
                 return
             }
 
+            // Проверка на соответствие минимальной роли
+            if (role.priority < ClanMemberRole.get(Settings.string("actions.rename")).priority) {
+                player.message("clan.rename.no_permission")
+                return
+            }
 
+            // Есть ли у игрока необходимая сумма для переименования
+            val cost = Settings.double("pricing.rename")
+            if (Utils.doNotHasNeededAmount(cost, player)) return
+
+            // Валидация имени клана на соответствие требованиям
+            val clanName = args[0]
+            if (Utils.isNameInvalid(clanName, player)) return
+            val colorlessClanName = removeColors(clanName)
+            val clan = ClanManager.Members.playerClan(player.uniqueId) ?: return
+            val oldName = clan.name
+
+            player.message("clan.edit.request", mapOf("oldName" to oldName, "name" to clanName, "cost" to "$cost"))
+
+            // Переименование клана
+            Clans.instance.actionManager.addAction(player) {
+                if (Utils.doNotHasNeededAmount(cost, player)) return@addAction
+
+                clan.name = clanName
+                clan.colorlessName = colorlessClanName
+                ClanManager.update(clan)
+
+                VaultHook.withdraw(player, cost)
+                player.message("clan.edit.success", mapOf("oldName" to oldName, "name" to clanName))
+            }
         }
     }
 

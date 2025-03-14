@@ -11,6 +11,7 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.mmarket.clans.api.pending.ActionManager
 import org.mmarket.clans.command.AclanCommand
 import org.mmarket.clans.command.CcCommand
 import org.mmarket.clans.command.ClanCommand
@@ -31,6 +32,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     val logger = plugin.logger
     val pluginManager = server.pluginManager
     val commandMap = server.commandMap
+    val actionManager = ActionManager(plugin)
 
     fun load() {
         if (loaded) {
@@ -151,11 +153,13 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
             password = pass
         )
 
+        logger.info("$prefix Соединение с базой данных установлено.")
+
         logger.info("$prefix Подготавливаем таблицы...")
         transaction {
             SchemaUtils.create(ClansTable, ClanMembersTable, ClanInvitesTable)
         }
-        logger.info("$prefix Таблицы подготовлены...")
+        logger.info("$prefix Таблицы подготовлены.")
     }
 
     fun jobs() {
@@ -179,7 +183,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         val prefix = prefix("Clans")
         logger.info("$prefix Идёт загрузка кланов...")
         ClanManager.init()
-        logger.info("$prefix Кланы успешно загружены...")
+        logger.info("$prefix Кланы успешно загружены.")
     }
 
     private fun prefix(name: String) = "( $name ) ::"

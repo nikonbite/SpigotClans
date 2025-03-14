@@ -6,9 +6,9 @@ import java.util.UUID
 
 data class ClanModel(
     val id: UUID,
-    val name: String,
-    val colorlessName: String,
-    val treasury: Long,
+    var name: String,
+    var colorlessName: String,
+    var treasury: Long,
     var news: FixedSizeList<String>,
     var motd: String,
     val creator: UUID,

@@ -5,7 +5,7 @@ import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
-abstract class SuperCommand(val names: List<String>, val subcommands: List<SuperSubcommand>) : Command(names[0], "", "", names.drop(0)) {
+abstract class SuperCommand(val names: List<String>, val subcommands: List<SuperSubcommand>) : Command(names[0], "", "", names.drop(1)) {
 
     abstract fun perform(player: Player, args: List<String>);
     abstract fun help(player: Player);
@@ -32,6 +32,6 @@ abstract class SuperCommand(val names: List<String>, val subcommands: List<Super
             return
         }
 
-        subcommand.perform(player, args.drop(0))
+        subcommand.perform(player, args.drop(1))
     }
 }
