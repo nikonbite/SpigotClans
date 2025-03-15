@@ -9,6 +9,7 @@ data class ClanModel(
     var name: String,
     var colorlessName: String,
     var treasury: Long,
+    var score: Long,
     var news: FixedSizeList<String>,
     var motd: String,
     val creator: UUID,

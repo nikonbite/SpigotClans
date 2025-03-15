@@ -1,16 +1,15 @@
 package org.mmarket.clans.system.table
 
-import org.jetbrains.exposed.sql.ReferenceOption
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.datetime
+import org.ktorm.schema.*
 import org.mmarket.clans.system.model.ClanMemberRole
+import java.time.LocalDateTime
+import java.util.UUID
 
-object ClanMembersTable : Table("clan_members") {
-    val id = integer("id").autoIncrement()
-    val clanId = reference("clan_id", ClansTable.id, onDelete = ReferenceOption.CASCADE)
-    val uuid = uuid("uuid").uniqueIndex()
-    val role = enumeration("role", ClanMemberRole::class)
+object ClanMembersTable : Table<Nothing>("clan_members") {
+    val id = int("id").primaryKey()
+    val clanId = uuid("clan_id")
+    val uuid = uuid("uuid")
+    val name = text("name")
+    val role = enum<ClanMemberRole>("role")
     val joinedAt = datetime("joined_at")
-
-    override val primaryKey = PrimaryKey(id)
 }

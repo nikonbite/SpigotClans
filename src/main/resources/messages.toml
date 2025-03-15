@@ -2,7 +2,9 @@
 no_permission = "&cУ вас недостаточно прав для выполнения данной команды!"
 not_enough_money = "&cВам не хватает &b{amount} СтарКоинов&c."
 not_in_clan = "&cВы не состоите в клане."
+player_not_in_clan = "&cНа данный момент этот игрок не состоит в клане."
 already_in_clan = "&cВы уже состоите в клане."
+player_already_in_clan = "&cЭтот игрок уже состоит в клане."
 
 [pending]
 timeout = "&cВремя на принятие решения по действию истекло."
@@ -11,12 +13,12 @@ cancelled = "&eДействие успешно отменено!"
 
 [clan]
 header = "&bПомощь по команде /clan:"
+name_is_not_match = "&cЗаданное наименование не соответствует требованиям."
 
 [clan.create]
 usage = "&b/clan create [имя] &7-&6 Создать клан"
 no_permission = "&cСоздать клан может только &eКвазар&c."
 success = "&aВы успешно создали клан {name}!"
-name_is_not_match = "&cЗаданное наименование не соответствует требованиям."
 
 [clan.rename]
 usage = "&b/clan rename [новое имя] &7-&6 Переименовать клан"
@@ -27,7 +29,6 @@ request = """
 &cЧтобы подтвердить смену названия напишите в чат &b/clan confirm&c, при отмене действия &b/clan recall&c.
 """
 success = "&aВы успешно переименовали клан {old_name} в {name}!"
-name_longer_than_max = "&cМаксимальное количество букв в названии клана: &6{max}&c."
 
 [clan.disband]
 usage = "&b/clan disband &7-&6 Распустить клан"
@@ -41,6 +42,13 @@ success = "&aВы успешно распустили клан {name}!"
 
 [clan.leave]
 usage = "&b/clan leave &7-&6 Покинуть клан"
+no_permission = "&cПокинуть клан может только &aРекрут&c."
+request = """
+&cВы уверены, что хотите выйти из клана {name}&c?
+&f
+&cЧтобы подтвердить выход из клана напишите в чат &b/clan confirm&c, при отмене действия &b/clan recall&c.
+"""
+success = "&aВы успешно покинули клан {name}!"
 
 [clan.invite]
 usage = "&b/clan invite [игрок] &7-&6 Пригласить игрока в клан"
@@ -50,12 +58,25 @@ usage = "&b/clan cancel [игрок] &7-&6 Отменить предложени
 
 [clan.kick]
 usage = "&b/clan kick [игрок] &7-&6 Выгнать игрока из клана"
+no_permission = "&cВыгнать игрока из клана может только &aКоммодор и выше&c."
+success = "&aВы успешно выгнали игрока {player} из клана!"
+notify = "&b{executor} &cисключил игрока &b{player} &cиз клана."
 
 [clan.invites]
 usage = "&b/clan invites &7-&6 Открыть меню приглашений"
 
 [clan.info]
 usage = "&b/clan info (клан) &7-&6 Посмореть информацию о клане"
+info = """
+&6Информация о клане “{clan}”&6:
+&3Адмирал клана: &b{owner}
+&3Дата основания: &b{created_at}
+&3Очки клана: &b{score}
+&3Место в топе: &b{top_position}
+&3Казна клана: &b{treasury}
+&3Участники: {members}/{max_members}
+&3Онлайн: &b{online}
+"""
 
 [clan.top]
 usage = "&b/clan top &7-&6 Посмотреть топ кланов"

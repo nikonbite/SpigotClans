@@ -1,5 +1,7 @@
 package org.mmarket.clans.command
 
+import org.bukkit.Bukkit.getOfflinePlayer
+import org.bukkit.Bukkit.getPlayer
 import org.bukkit.entity.Player
 import org.mmarket.clans.Clans
 import org.mmarket.clans.api.command.SuperCommand
@@ -68,7 +70,7 @@ class ClanCommand : SuperCommand(
 
         fun isNameInvalid(name: String, player: Player): Boolean {
             return if (!validateClanName(name)) {
-                player.message("clan.create.name_is_not_match")
+                player.message("clan.name_is_not_match")
                 true
             } else false
         }
@@ -107,7 +109,7 @@ class ClanCommand : SuperCommand(
 
             // Создание клана
             val colorlessClanName = removeColors(clanName)
-            ClanManager.create(clanName, colorlessClanName, player.uniqueId)
+            ClanManager.create(clanName, colorlessClanName, player.uniqueId, player.name)
             player.message("clan.create.success", mapOf("name" to clanName))
         }
     }
@@ -137,7 +139,7 @@ class ClanCommand : SuperCommand(
             val clanName = args[0]
             if (Utils.isNameInvalid(clanName, player)) return
             val colorlessClanName = removeColors(clanName)
-            val clan = ClanManager.Members.playerClan(player.uniqueId) ?: return
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
             val oldName = clan.name
 
             player.message("clan.edit.request", mapOf("oldName" to oldName, "name" to clanName, "cost" to "$cost"))
@@ -159,14 +161,59 @@ class ClanCommand : SuperCommand(
     /** Расформировать клан */
     class DisbandSubcommand : SuperSubcommand(listOf("disband", "вшыифтв")) {
         override fun perform(player: Player, args: List<String>) {
+            // Состоит ли игрок в клане
+            if (Utils.notInClan(player)) return
 
+            val role = ClanManager.Members.role(player.uniqueId)
+            if (role == null) {
+                return
+            }
+
+            // Проверка на соответствие минимальной роли
+            if (role.priority < ClanMemberRole.get(Settings.string("actions.disband")).priority) {
+                player.message("clan.disband.no_permission")
+                return
+            }
+
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+
+            player.message("clan.disband.request", mapOf("name" to clan.name))
+
+            // Переименование клана
+            Clans.instance.actionManager.addAction(player) {
+                ClanManager.delete(clan.id)
+
+                player.message("clan.disband.success", mapOf("name" to clan.name))
+            }
         }
     }
 
     /** Покинуть клан */
     class LeaveSubcommand : SuperSubcommand(listOf("leave", "дуфму")) {
         override fun perform(player: Player, args: List<String>) {
+            // Состоит ли игрок в клане
+            if (Utils.notInClan(player)) return
 
+            val role = ClanManager.Members.role(player.uniqueId)
+            if (role == null) {
+                return
+            }
+
+            // Проверка на соответствие минимальной роли
+            if (role.priority != ClanMemberRole.RECRUIT.priority) {
+                player.message("clan.leave.no_permission")
+                return
+            }
+
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+
+            player.message("clan.leave.request", mapOf("name" to clan.name))
+
+            // Покинуть клан
+            Clans.instance.actionManager.addAction(player) {
+                ClanManager.removeMember(player.uniqueId)
+                player.message("clan.leave.success", mapOf("name" to clan.name))
+            }
         }
     }
 
@@ -187,7 +234,31 @@ class ClanCommand : SuperCommand(
     /** Выгнать игрока из клана */
     class KickSubcommand : SuperSubcommand(listOf("kick", "лшсл")) {
         override fun perform(player: Player, args: List<String>) {
+            // Состоит ли игрок в клане
+            if (Utils.notInClan(player)) return
 
+            val role = ClanManager.Members.role(player.uniqueId)
+            if (role == null) {
+                return
+            }
+
+            // Проверка на соответствие минимальной роли
+            if (role.priority < ClanMemberRole.get(Settings.string("actions.kick")).priority) {
+                player.message("clan.kick.no_permission")
+                return
+            }
+
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+
+            val targetName = args[0]
+            val target = ClanManager.Members.member(clan.id, targetName) ?: return
+
+            ClanManager.removeMember(target.uuid)
+            player.message("clan.kick.success", mapOf("player" to target.name))
+
+            clan.members.forEach {
+                getPlayer(it.uuid)?.message("clan.kick.notify", mapOf("executor" to player.name, "player" to target.name))
+            }
         }
     }
 
@@ -201,7 +272,15 @@ class ClanCommand : SuperCommand(
     /** Посмотреть информацию о клане */
     class InfoSubcommand : SuperSubcommand(listOf("info", "штащ")) {
         override fun perform(player: Player, args: List<String>) {
+            if (args.isEmpty()) {
+                if (Utils.notInClan(player)) return
 
+                val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+
+
+            } else {
+
+            }
         }
     }
 

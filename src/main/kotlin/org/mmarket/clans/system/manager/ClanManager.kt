@@ -1,9 +1,11 @@
 package org.mmarket.clans.system.manager
 
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.ktorm.database.Database
+import org.ktorm.dsl.*
+import org.ktorm.entity.*
 import org.mmarket.clans.api.utility.FixedSizeList
+import org.mmarket.clans.system.entity.ClanEntity
+import org.mmarket.clans.system.entity.ClanMemberEntity
 import org.mmarket.clans.system.model.ClanMemberModel
 import org.mmarket.clans.system.model.ClanMemberRole
 import org.mmarket.clans.system.model.ClanModel
@@ -11,7 +13,7 @@ import org.mmarket.clans.system.table.ClanInvitesTable
 import org.mmarket.clans.system.table.ClanMembersTable
 import org.mmarket.clans.system.table.ClansTable
 import java.time.LocalDateTime
-import java.util.*
+import java.util.UUID
 
 /**
  * Менеджер для работы с кланами.
@@ -19,18 +21,23 @@ import java.util.*
  */
 object ClanManager {
     private val clansCache = mutableMapOf<UUID, ClanModel>()
+    private lateinit var database: Database
 
     /**
      * Загружает все кланы из базы данных в кэш
      */
-    fun init() {
-        transaction {
-            ClansTable.selectAll().forEach { row: ResultRow ->
-                val clanId = row[ClansTable.id]
+    fun init(db: Database) {
+        database = db
+        
+        // Загружаем все кланы
+        val clans = database.from(ClansTable)
+            .select()
+            .map { row ->
+                val clanId = row[ClansTable.id]!!
                 val clan = convertRowToClanModel(row)
                 clansCache[clanId] = clan
+                clan
             }
-        }
         
         // Инициализируем кэш участников
         Members.init()
@@ -49,15 +56,15 @@ object ClanManager {
         }
 
         // Если нет в кэше, пробуем загрузить из БД
-        return transaction {
-            ClansTable.select(ClansTable.id eq id)
-                .firstOrNull()
-                ?.let { row: ResultRow ->
-                    val clan = convertRowToClanModel(row)
-                    clansCache[id] = clan
-                    clan
-                }
-        }
+        return database.from(ClansTable)
+            .select()
+            .where { ClansTable.id eq id }
+            .map { row -> 
+                val clan = convertRowToClanModel(row)
+                clansCache[id] = clan
+                clan
+            }
+            .firstOrNull()
     }
 
     /**
@@ -68,21 +75,21 @@ object ClanManager {
      */
     fun get(name: String): ClanModel? {
         // Проверяем кэш
-        val cachedClan = clansCache.values.firstOrNull { it.name.equals(name, ignoreCase = true) }
-        if (cachedClan != null) {
-            return cachedClan
+        val clan = clansCache.values.find { it.name.equals(name, ignoreCase = true) }
+        if (clan != null) {
+            return clan
         }
 
         // Если нет в кэше, пробуем загрузить из БД
-        return transaction {
-            ClansTable.select(ClansTable.colorlessName eq name)
-                .firstOrNull()
-                ?.let { row: ResultRow ->
-                    val clan = convertRowToClanModel(row)
-                    clansCache[clan.id] = clan
-                    clan
-                }
-        }
+        return database.from(ClansTable)
+            .select()
+            .where { ClansTable.name eq name }
+            .map { row -> 
+                val clanModel = convertRowToClanModel(row)
+                clansCache[clanModel.id] = clanModel
+                clanModel
+            }
+            .firstOrNull()
     }
 
     /**
@@ -90,96 +97,72 @@ object ClanManager {
      *
      * @param name имя клана
      * @param colorlessName имя клана без цветовых кодов
-     * @param creatorUuid UUID создателя клана
-     * @return созданная модель клана
+     * @param creator UUID создателя клана
+     * @return модель созданного клана
      */
-    fun create(name: String, colorlessName: String, creatorUuid: UUID): ClanModel {
+    fun create(name: String, colorlessName: String, creator: UUID, creatorName: String): ClanModel {
+        val id = UUID.randomUUID()
         val now = LocalDateTime.now()
-        val newClanId = UUID.randomUUID()
-
-        val clan = transaction {
-            // Создаем запись клана
-            ClansTable.insert {
-                it[id] = newClanId
-                it[ClansTable.name] = name
-                it[ClansTable.colorlessName] = colorlessName
-                it[treasury] = 0
-                it[news] = emptyList()
-                it[motd] = ""
-                it[creator] = creatorUuid
-                it[owner] = creatorUuid
-                it[createdAt] = now
-            }
-
-            // Создаем запись владельца клана
-            ClanMembersTable.insert {
-                it[clanId] = newClanId
-                it[uuid] = creatorUuid
-                it[role] = ClanMemberRole.ADMIRAL
-                it[joinedAt] = now
-            }
-
-            // Создаем модель клана
-            val ownerModel = ClanMemberModel(
-                uuid = creatorUuid,
-                role = ClanMemberRole.ADMIRAL,
-                joinedAt = now
-            )
-
-            ClanModel(
-                id = newClanId,
-                name = name,
-                colorlessName = colorlessName,
-                treasury = 0,
-                news = FixedSizeList<String>(10),
-                motd = "",
-                creator = creatorUuid,
-                owner = creatorUuid,
-                members = mutableSetOf(ownerModel),
-                createdAt = now
-            )
+        
+        // Создаем клан в БД
+        database.insert(ClansTable) {
+            set(it.id, id)
+            set(it.name, name)
+            set(it.colorlessName, colorlessName)
+            set(it.treasury, 0L)
+            set(it.news, "[]")
+            set(it.motd, "")
+            set(it.creator, creator)
+            set(it.owner, creator)
+            set(it.createdAt, now)
         }
-
+        
+        // Создаем модель клана
+        val newsList = FixedSizeList<String>(10)
+        
+        val clan = ClanModel(
+            id = id,
+            name = name,
+            colorlessName = colorlessName,
+            treasury = 0,
+            score = 0,
+            news = newsList,
+            motd = "",
+            creator = creator,
+            owner = creator,
+            members = mutableSetOf(),
+            createdAt = now
+        )
+        
+        // Добавляем владельца как участника с ролью ADMIRAL
+        addMember(id, creator, creatorName, ClanMemberRole.ADMIRAL)
+        
         // Добавляем в кэш
-        clansCache[newClanId] = clan
+        clansCache[id] = clan
+        
         return clan
     }
 
     /**
-     * Удаляет клан
+     * Обновляет информацию о клане
      *
-     * @param id ID клана
-     * @return true, если клан успешно удален
-     */
-    fun delete(id: UUID): Boolean {
-        return transaction {
-            val result = ClansTable.deleteWhere { ClansTable.id eq id } > 0
-            if (result) {
-                clansCache.remove(id)
-            }
-            result
-        }
-    }
-
-    /**
-     * Обновляет данные клана в БД
-     *
-     * @param clan модель клана для обновления
+     * @param clan модель клана
      */
     fun update(clan: ClanModel) {
-        transaction {
-            ClansTable.update({ ClansTable.id eq clan.id }) {
-                it[name] = clan.name
-                it[colorlessName] = clan.colorlessName
-                it[treasury] = clan.treasury
-                it[news] = clan.news.toList()
-                it[motd] = clan.motd
-                it[owner] = clan.owner
+        database.update(ClansTable) {
+            set(it.name, clan.name)
+            set(it.colorlessName, clan.colorlessName)
+            set(it.treasury, clan.treasury)
+            set(it.news, clan.news.toList().joinToString("\n"))
+            set(it.motd, clan.motd)
+            set(it.owner, clan.owner)
+            where {
+                it.id eq clan.id
             }
-
-            // Обновляем кэш
-            clansCache[clan.id] = clan
         }
+        
+        // Обновляем кэш
+        clansCache[clan.id] = clan
     }
 
     /**
@@ -190,43 +173,51 @@ object ClanManager {
      * @param role роль участника
      * @return true, если участник успешно добавлен
      */
-    fun addMember(clanId: UUID, playerUuid: UUID, role: ClanMemberRole = ClanMemberRole.RECRUIT): Boolean {
+    fun addMember(clanId: UUID, playerUuid: UUID, playerName: String, role: ClanMemberRole = ClanMemberRole.RECRUIT): Boolean {
         val now = LocalDateTime.now()
-
-        return transaction {
-            // Проверяем, существует ли клан
-            val clanExists = ClansTable.select(ClansTable.id eq clanId).count() > 0
-            if (!clanExists) return@transaction false
-
-            // Проверяем, не состоит ли игрок уже в клане
-            val alreadyInClan = ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).count() > 0
-
-            if (alreadyInClan) return@transaction false
-
-            // Добавляем участника
-            ClanMembersTable.insert {
-                it[ClanMembersTable.clanId] = clanId
-                it[uuid] = playerUuid
-                it[ClanMembersTable.role] = role
-                it[joinedAt] = now
-            }
-
-            // Обновляем кэш
-            val clan = clansCache[clanId]
-            if (clan != null) {
-                val memberModel = ClanMemberModel(
-                    uuid = playerUuid,
-                    role = role,
-                    joinedAt = now
-                )
-                clan.members.add(memberModel)
-                
-                // Обновляем кэш участников
-                Members.updateCacheOnAdd(clanId, memberModel)
-            }
-
-            true
+        
+        // Проверяем, существует ли клан
+        val clanExists = database.from(ClansTable)
+            .select(count(ClansTable.id))
+            .where { ClansTable.id eq clanId }
+            .map { it.getInt(1) }
+            .first() > 0
+            
+        if (!clanExists) return false
+        
+        // Проверяем, не состоит ли игрок уже в клане
+        val alreadyInClan = database.from(ClanMembersTable)
+            .select(count(ClanMembersTable.id))
+            .where { ClanMembersTable.uuid eq playerUuid }
+            .map { it.getInt(1) }
+            .first() > 0
+            
+        if (alreadyInClan) return false
+        
+        // Добавляем участника
+        database.insert(ClanMembersTable) {
+            set(it.clanId, clanId)
+            set(it.uuid, playerUuid)
+            set(it.role, role)
+            set(it.joinedAt, now)
         }
+        
+        // Обновляем кэш
+        val clan = clansCache[clanId]
+        if (clan != null) {
+            val memberModel = ClanMemberModel(
+                uuid = playerUuid,
+                name = playerName,
+                role = role,
+                joinedAt = now
+            )
+            clan.members.add(memberModel)
+            
+            // Обновляем кэш участников
+            Members.updateCacheOnAdd(clanId, memberModel)
+        }
+        
+        return true
     }
 
     /**
@@ -236,28 +227,32 @@ object ClanManager {
      * @return true, если участник успешно удален
      */
     fun removeMember(playerUuid: UUID): Boolean {
-        return transaction {
-            // Находим запись участника клана
-            val memberRow = ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).firstOrNull()
-
-            if (memberRow == null) return@transaction false
-
-            val clanId = memberRow[ClanMembersTable.clanId]
-
-            // Удаляем участника
-            val result = ClanMembersTable.deleteWhere { uuid eq playerUuid } > 0
-
-            // Обновляем кэш
-            if (result) {
-                val clan = clansCache[clanId]
-                clan?.members?.removeIf { it.uuid == playerUuid }
-                
-                // Обновляем кэш участников
-                Members.updateCacheOnRemove(playerUuid)
+        // Находим запись участника клана
+        val memberRow = database.from(ClanMembersTable)
+            .select()
+            .where { ClanMembersTable.uuid eq playerUuid }
+            .map { row ->
+                Pair(row[ClanMembersTable.clanId]!!, row[ClanMembersTable.uuid]!!)
             }
-
-            result
+            .firstOrNull()
+            
+        if (memberRow == null) return false
+        
+        val clanId = memberRow.first
+        
+        // Удаляем участника
+        val result = database.delete(ClanMembersTable) { it.uuid eq playerUuid } > 0
+        
+        // Обновляем кэш
+        if (result) {
+            val clan = clansCache[clanId]
+            clan?.members?.removeIf { it.uuid == playerUuid }
+            
+            // Обновляем кэш участников
+            Members.updateCacheOnRemove(playerUuid)
         }
+        
+        return result
     }
 
     /**
@@ -268,32 +263,37 @@ object ClanManager {
      * @return true, если роль успешно обновлена
      */
     fun updateMemberRole(playerUuid: UUID, newRole: ClanMemberRole): Boolean {
-        return transaction {
-            // Находим запись участника клана
-            val memberRow = ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).firstOrNull()
-
-            if (memberRow == null) return@transaction false
-
-            val clanId = memberRow[ClanMembersTable.clanId]
-
-            // Обновляем роль
-            val result = ClanMembersTable.update({
-                ClanMembersTable.uuid eq playerUuid
-            }) {
-                it[role] = newRole
-            } > 0
-
-            // Обновляем кэш
-            if (result) {
-                val clan = clansCache[clanId]
-                clan?.members?.find { it.uuid == playerUuid }?.role = newRole
-                
-                // Обновляем кэш участников
-                Members.updateCacheOnRoleChange(playerUuid, newRole)
+        // Находим запись участника клана
+        val memberRow = database.from(ClanMembersTable)
+            .select()
+            .where { ClanMembersTable.uuid eq playerUuid }
+            .map { row ->
+                Pair(row[ClanMembersTable.clanId]!!, row[ClanMembersTable.uuid]!!)
             }
-
-            result
+            .firstOrNull()
+            
+        if (memberRow == null) return false
+        
+        val clanId = memberRow.first
+        
+        // Обновляем роль
+        val result = database.update(ClanMembersTable) {
+            set(it.role, newRole)
+            where {
+                it.uuid eq playerUuid
+            }
+        } > 0
+        
+        // Обновляем кэш
+        if (result) {
+            val clan = clansCache[clanId]
+            clan?.members?.find { it.uuid == playerUuid }?.role = newRole
+            
+            // Обновляем кэш участников
+            Members.updateCacheOnRoleChange(playerUuid, newRole)
         }
+        
+        return result
     }
 
     /**
@@ -304,34 +304,41 @@ object ClanManager {
      * @return true, если приглашение успешно создано
      */
     fun createInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        val now = LocalDateTime.now()
-
-        return transaction {
-            // Проверяем, существует ли клан
-            val clanExists = ClansTable.select(ClansTable.id eq clanId).count() > 0
-            if (!clanExists) return@transaction false
-
-            // Проверяем, не состоит ли игрок уже в клане
-            val alreadyInClan = ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).count() > 0
-
-            if (alreadyInClan) return@transaction false
-
-            // Проверяем, нет ли уже приглашения
-            val inviteExists =
-                ClanInvitesTable.select((ClanInvitesTable.clanId eq clanId) and (ClanInvitesTable.uuid eq playerUuid))
-                    .count() > 0
-
-            if (inviteExists) return@transaction false
-
-            // Создаем приглашение
-            ClanInvitesTable.insert {
-                it[ClanInvitesTable.clanId] = clanId
-                it[uuid] = playerUuid
-                it[createdAt] = now
-            }
-
-            true
+        // Проверяем, существует ли клан
+        val clanExists = database.from(ClansTable)
+            .select(count(ClansTable.id))
+            .where { ClansTable.id eq clanId }
+            .map { it.getInt(1) }
+            .first() > 0
+            
+        if (!clanExists) return false
+        
+        // Проверяем, не состоит ли игрок уже в клане
+        val alreadyInClan = database.from(ClanMembersTable)
+            .select(count(ClanMembersTable.id))
+            .where { ClanMembersTable.uuid eq playerUuid }
+            .map { it.getInt(1) }
+            .first() > 0
+            
+        if (alreadyInClan) return false
+        
+        // Проверяем, нет ли уже приглашения
+        val alreadyInvited = database.from(ClanInvitesTable)
+            .select(count(ClanInvitesTable.id))
+            .where { (ClanInvitesTable.clanId eq clanId) and (ClanInvitesTable.uuid eq playerUuid) }
+            .map { it.getInt(1) }
+            .first() > 0
+            
+        if (alreadyInvited) return false
+        
+        // Создаем приглашение
+        database.insert(ClanInvitesTable) {
+            set(it.clanId, clanId)
+            set(it.uuid, playerUuid)
+            set(it.createdAt, LocalDateTime.now())
         }
+        
+        return true
     }
 
     /**
@@ -342,25 +349,52 @@ object ClanManager {
      * @return true, если приглашение успешно удалено
      */
     fun removeInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        return transaction {
-            ClanInvitesTable.deleteWhere {
-                (ClanInvitesTable.clanId eq clanId) and (uuid eq playerUuid)
-            } > 0
-        }
+        return database.delete(ClanInvitesTable) {
+            (it.clanId eq clanId) and (it.uuid eq playerUuid)
+        } > 0
     }
 
     /**
-     * Проверяет, есть ли у игрока приглашение в клан
+     * Удаляет клан
+     *
+     * @param clanId ID клана
+     * @return true, если клан успешно удален
+     */
+    fun delete(clanId: UUID): Boolean {
+        // Получаем список участников клана для обновления кэша
+        val members = database.from(ClanMembersTable)
+            .select()
+            .where { ClanMembersTable.clanId eq clanId }
+            .map { row -> row[ClanMembersTable.uuid]!! }
+            .toList()
+        
+        // Удаляем клан (каскадно удалятся участники и приглашения)
+        val result = database.delete(ClansTable) { it.id eq clanId } > 0
+        
+        // Обновляем кэш
+        if (result) {
+            clansCache.remove(clanId)
+            
+            // Обновляем кэш участников
+            members.forEach { Members.updateCacheOnRemove(it) }
+        }
+        
+        return result
+    }
+
+    /**
+     * Проверяет, существует ли приглашение в клан
      *
      * @param clanId ID клана
      * @param playerUuid UUID игрока
      * @return true, если приглашение существует
      */
     fun hasInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        return transaction {
-            ClanInvitesTable.select((ClanInvitesTable.clanId eq clanId) and (ClanInvitesTable.uuid eq playerUuid))
-                .count() > 0
-        }
+        return database.from(ClanInvitesTable)
+            .select(count(ClanInvitesTable.id))
+            .where { (ClanInvitesTable.clanId eq clanId) and (ClanInvitesTable.uuid eq playerUuid) }
+            .map { it.getInt(1) }
+            .first() > 0
     }
 
     /**
@@ -370,10 +404,10 @@ object ClanManager {
      * @return список ID кланов, в которые приглашен игрок
      */
     fun getPlayerInvites(playerUuid: UUID): List<UUID> {
-        return transaction {
-            ClanInvitesTable.select(ClanInvitesTable.uuid eq playerUuid)
-                .map { it[ClanInvitesTable.clanId] }
-        }
+        return database.from(ClanInvitesTable)
+            .select(ClanInvitesTable.clanId)
+            .where { ClanInvitesTable.uuid eq playerUuid }
+            .map { it[ClanInvitesTable.clanId]!! }
     }
 
     object Members {
@@ -384,18 +418,19 @@ object ClanManager {
          * Инициализирует кэш участников кланов
          */
         fun init() {
-            transaction {
-                ClanMembersTable.selectAll().forEach { row: ResultRow ->
-                    val playerUuid = row[ClanMembersTable.uuid]
-                    val clanId = row[ClanMembersTable.clanId]
+            database.from(ClanMembersTable)
+                .select()
+                .map { row ->
+                    val playerUuid = row[ClanMembersTable.uuid]!!
+                    val clanId = row[ClanMembersTable.clanId]!!
                     val memberModel = ClanMemberModel(
                         uuid = playerUuid,
-                        role = row[ClanMembersTable.role],
-                        joinedAt = row[ClanMembersTable.joinedAt]
+                        name = row[ClanMembersTable.name]!!,
+                        role = row[ClanMembersTable.role]!!,
+                        joinedAt = row[ClanMembersTable.joinedAt]!!
                     )
                     membersCache[playerUuid] = Pair(clanId, memberModel)
                 }
-            }
         }
 
         /**
@@ -404,7 +439,7 @@ object ClanManager {
          * @param playerUuid UUID игрока
          * @return модель клана или null, если игрок не состоит в клане
          */
-        fun playerClan(playerUuid: UUID): ClanModel? {
+        fun getClan(playerUuid: UUID): ClanModel? {
             // Проверяем кэш участников
             val memberData = membersCache[playerUuid]
             if (memberData != null) {
@@ -413,23 +448,33 @@ object ClanManager {
             }
 
             // Если нет в кэше, пробуем загрузить из БД
-            return transaction {
-                val memberRow = ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).firstOrNull()
-                    ?: return@transaction null
-
-                val clanId = memberRow[ClanMembersTable.clanId]
-                val memberModel = ClanMemberModel(
-                    uuid = playerUuid,
-                    role = memberRow[ClanMembersTable.role],
-                    joinedAt = memberRow[ClanMembersTable.joinedAt]
-                )
-
-                // Добавляем в кэш
-                membersCache[playerUuid] = Pair(clanId, memberModel)
-
-                // Возвращаем клан
-                clansCache[clanId] ?: get(clanId)
-            }
+            val memberRow = database.from(ClanMembersTable)
+                .select()
+                .where { ClanMembersTable.uuid eq playerUuid }
+                .map { row ->
+                    Triple(
+                        row[ClanMembersTable.clanId]!!,
+                        row[ClanMembersTable.uuid]!!,
+                        ClanMemberModel(
+                            uuid = row[ClanMembersTable.uuid]!!,
+                            name = row[ClanMembersTable.name]!!,
+                            role = row[ClanMembersTable.role]!!,
+                            joinedAt = row[ClanMembersTable.joinedAt]!!
+                        )
+                    )
+                }
+                .firstOrNull()
+                
+            if (memberRow == null) return null
+            
+            val clanId = memberRow.first
+            val memberModel = memberRow.third
+            
+            // Добавляем в кэш
+            membersCache[playerUuid] = Pair(clanId, memberModel)
+            
+            // Возвращаем клан
+            return clansCache[clanId] ?: get(clanId)
         }
 
         /**
@@ -439,9 +484,11 @@ object ClanManager {
          * @return true, если игрок состоит в клане
          */
         fun inClan(playerUuid: UUID): Boolean {
-            return membersCache.containsKey(playerUuid) || transaction {
-                ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid).count() > 0
-            }
+            return membersCache.containsKey(playerUuid) || database.from(ClanMembersTable)
+                .select(count(ClanMembersTable.id))
+                .where { ClanMembersTable.uuid eq playerUuid }
+                .map { it.getInt(1) }
+                .first() > 0
         }
 
         /**
@@ -459,11 +506,11 @@ object ClanManager {
             }
 
             // Если нет в кэше, проверяем в БД
-            return transaction {
-                ClanMembersTable.select(
-                    (ClanMembersTable.clanId eq clanId) and (ClanMembersTable.uuid eq playerUuid)
-                ).count() > 0
-            }
+            return database.from(ClanMembersTable)
+                .select(count(ClanMembersTable.id))
+                .where { (ClanMembersTable.clanId eq clanId) and (ClanMembersTable.uuid eq playerUuid) }
+                .map { it.getInt(1) }
+                .first() > 0
         }
 
         /**
@@ -480,23 +527,28 @@ object ClanManager {
             }
 
             // Если нет в кэше, проверяем в БД
-            return transaction {
-                ClanMembersTable.select(ClanMembersTable.uuid eq playerUuid)
-                    .firstOrNull()
-                    ?.let { row ->
-                        val clanId = row[ClanMembersTable.clanId]
-                        val memberModel = ClanMemberModel(
-                            uuid = playerUuid,
-                            role = row[ClanMembersTable.role],
-                            joinedAt = row[ClanMembersTable.joinedAt]
-                        )
-                        
-                        // Добавляем в кэш
-                        membersCache[playerUuid] = Pair(clanId, memberModel)
-                        
-                        memberModel.role
-                    }
-            }
+            return database.from(ClanMembersTable)
+                .select(ClanMembersTable.role)
+                .where { ClanMembersTable.uuid eq playerUuid }
+                .map { row ->
+                    val clanId = row[ClanMembersTable.clanId]!!
+                    val name = row[ClanMembersTable.name]!!
+                    val role = row[ClanMembersTable.role]!!
+                    val joinedAt = row[ClanMembersTable.joinedAt]!!
+                    
+                    val memberModel = ClanMemberModel(
+                        uuid = playerUuid,
+                        name = name,
+                        role = role,
+                        joinedAt = joinedAt
+                    )
+                    
+                    // Добавляем в кэш
+                    membersCache[playerUuid] = Pair(clanId, memberModel)
+                    
+                    role
+                }
+                .firstOrNull()
         }
 
         /**
@@ -513,23 +565,83 @@ object ClanManager {
             }
 
             // Если клан не в кэше, загружаем участников из БД
-            return transaction {
-                ClanMembersTable.select(ClanMembersTable.clanId eq clanId)
-                    .map { row ->
-                        val playerUuid = row[ClanMembersTable.uuid]
-                        val memberModel = ClanMemberModel(
-                            uuid = playerUuid,
-                            role = row[ClanMembersTable.role],
-                            joinedAt = row[ClanMembersTable.joinedAt]
-                        )
-                        
-                        // Добавляем в кэш участников
-                        membersCache[playerUuid] = Pair(clanId, memberModel)
-                        
-                        memberModel
-                    }
-                    .toSet()
+            return database.from(ClanMembersTable)
+                .select()
+                .where { ClanMembersTable.clanId eq clanId }
+                .map { row ->
+                    val playerUuid = row[ClanMembersTable.uuid]!!
+                    val memberModel = ClanMemberModel(
+                        uuid = playerUuid,
+                        name = row[ClanMembersTable.name]!!,
+                        role = row[ClanMembersTable.role]!!,
+                        joinedAt = row[ClanMembersTable.joinedAt]!!
+                    )
+                    
+                    // Добавляем в кэш участников
+                    membersCache[playerUuid] = Pair(clanId, memberModel)
+                    
+                    memberModel
+                }
+                .toSet()
+        }
+
+        /**
+         * Получает конкретного участника клана по его UUID
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return модель участника клана или null, если не найден
+         */
+        fun member(clanId: UUID, playerUuid: UUID): ClanMemberModel? {
+            // Сначала проверяем кэш участников
+            membersCache[playerUuid]?.let { (cachedClanId, member) ->
+                if (cachedClanId == clanId) {
+                    return member
+                }
             }
+
+            // Если не найдено в кэше, ищем в БД
+            return database.from(ClanMembersTable)
+                .select()
+                .where {
+                    ClanMembersTable.clanId eq clanId and (ClanMembersTable.uuid eq playerUuid)
+                }
+                .map { row ->  // Преобразуем каждую строку в модель [[2]][[4]]
+                    ClanMemberModel(
+                        uuid = row[ClanMembersTable.uuid]!!,
+                        name = row[ClanMembersTable.name]!!,
+                        role = row[ClanMembersTable.role]!!,
+                        joinedAt = row[ClanMembersTable.joinedAt]!!
+                    )
+                }
+                .firstOrNull()  // Берем первую запись или null [[8]]
+                ?.also { memberModel ->  // Кэшируем результат [[6]]
+                    membersCache[playerUuid] = Pair(clanId, memberModel)
+                }
+        }
+
+        /**
+         * Получает конкретного участника клана по его UUID
+         *
+         * @param clanId ID клана
+         * @param playerName Ник игрока
+         * @return модель участника клана или null, если не найден
+         */
+        fun member(clanId: UUID, playerName: String): ClanMemberModel? {
+            return database.from(ClanMembersTable)
+                .select()
+                .where {
+                    ClanMembersTable.clanId eq clanId and (ClanMembersTable.name eq playerName)
+                }
+                .map { row ->  // Преобразуем каждую строку в модель [[2]][[4]]
+                    ClanMemberModel(
+                        uuid = row[ClanMembersTable.uuid]!!,
+                        name = row[ClanMembersTable.name]!!,
+                        role = row[ClanMembersTable.role]!!,
+                        joinedAt = row[ClanMembersTable.joinedAt]!!
+                    )
+                }
+                .firstOrNull()
         }
 
         /**
@@ -592,37 +704,39 @@ object ClanManager {
      * @param row строка из таблицы кланов
      * @return модель клана
      */
-    private fun convertRowToClanModel(row: ResultRow): ClanModel {
-        val clanId = row[ClansTable.id]
+    private fun convertRowToClanModel(row: QueryRowSet): ClanModel {
+        val clanId = row[ClansTable.id]!!
 
         // Получаем участников клана
-        val members = transaction {
-            ClanMembersTable.select(ClanMembersTable.clanId eq clanId)
-                .map { memberRow: ResultRow ->
-                    ClanMemberModel(
-                        uuid = memberRow[ClanMembersTable.uuid],
-                        role = memberRow[ClanMembersTable.role],
-                        joinedAt = memberRow[ClanMembersTable.joinedAt]
-                    )
-                }
-                .toMutableSet()
-        }
+        val members = database.from(ClanMembersTable)
+            .select()
+            .where { ClanMembersTable.clanId eq clanId }
+            .map { memberRow ->
+                ClanMemberModel(
+                    uuid = memberRow[ClanMembersTable.uuid]!!,
+                    name = row[ClanMembersTable.name]!!,
+                    role = memberRow[ClanMembersTable.role]!!,
+                    joinedAt = memberRow[ClanMembersTable.joinedAt]!!
+                )
+            }
+            .toMutableSet()
 
         // Создаем список новостей
         val newsList = FixedSizeList<String>(10)
-        row[ClansTable.news].forEach { newsItem: String -> newsList.add(newsItem) }
+        row[ClansTable.news]!!.split("\n").forEach { newsItem -> newsList.add(newsItem) }
 
         return ClanModel(
             id = clanId,
-            name = row[ClansTable.name],
-            colorlessName = row[ClansTable.colorlessName],
-            treasury = row[ClansTable.treasury],
+            name = row[ClansTable.name]!!,
+            colorlessName = row[ClansTable.colorlessName]!!,
+            treasury = row[ClansTable.treasury]!!,
+            score = row[ClansTable.score]!!,
             news = newsList,
-            motd = row[ClansTable.motd],
-            creator = row[ClansTable.creator],
-            owner = row[ClansTable.owner],
+            motd = row[ClansTable.motd]!!,
+            creator = row[ClansTable.creator]!!,
+            owner = row[ClansTable.owner]!!,
             members = members,
-            createdAt = row[ClansTable.createdAt]
+            createdAt = row[ClansTable.createdAt]!!
         )
     }
 }

@@ -6,11 +6,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.bukkit.command.Command
 import org.bukkit.event.Listener
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.ktorm.database.Database
+import org.ktorm.dsl.*
+import org.ktorm.support.mysql.MySqlDialect
 import org.mmarket.clans.api.pending.ActionManager
 import org.mmarket.clans.command.AclanCommand
 import org.mmarket.clans.command.CcCommand
@@ -33,6 +31,10 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     val pluginManager = server.pluginManager
     val commandMap = server.commandMap
     val actionManager = ActionManager(plugin)
+    
+    // База данных
+    lateinit var database: Database
+        private set
 
     fun load() {
         if (loaded) {
@@ -146,19 +148,60 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         val pass = Settings.string("database.pass")
         val data = Settings.string("database.data")
 
-        Database.connect(
-            url = "jdbc:mysql://${host}:${port}/${data}?nullCatalogMeansCurrent=true&useInformationSchema=false",
+        database = Database.connect(
+            url = "jdbc:mysql://${host}:${port}/${data}",
             driver = "com.mysql.cj.jdbc.Driver",
             user = user,
-            password = pass
+            password = pass,
+            dialect = MySqlDialect()
         )
 
         logger.info("$prefix Соединение с базой данных установлено.")
 
         logger.info("$prefix Подготавливаем таблицы...")
-        transaction {
-            SchemaUtils.create(ClansTable, ClanMembersTable, ClanInvitesTable)
+        // Создаем таблицы, если их нет
+        database.useConnection { conn ->
+            conn.createStatement().use { stmt ->
+                // Создаем таблицу кланов
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS clans (
+                        id BINARY(16) PRIMARY KEY,
+                        name VARCHAR(256) UNIQUE,
+                        colorless_name VARCHAR(12),
+                        treasury BIGINT DEFAULT 0,
+                        news JSON DEFAULT ('[]'),
+                        motd TEXT DEFAULT '',
+                        creator BINARY(16),
+                        owner BINARY(16),
+                        created_at DATETIME
+                    )
+                """)
+                
+                // Создаем таблицу участников клана
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS clan_members (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        clan_id BINARY(16),
+                        uuid BINARY(16) UNIQUE,
+                        role VARCHAR(50),
+                        joined_at DATETIME,
+                        FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
+                    )
+                """)
+                
+                // Создаем таблицу приглашений в клан
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS clan_invites (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        clan_id BINARY(16),
+                        uuid BINARY(16),
+                        created_at DATETIME,
+                        FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
+                    )
+                """)
+            }
         }
+        
         logger.info("$prefix Таблицы подготовлены.")
     }
 
@@ -169,10 +212,8 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         CoroutineScope(Dispatchers.Default).launch {
             while (true) {
                 delay(24 * 60 * 60 * 1000)
-                transaction {
-                    ClanInvitesTable.deleteWhere {
-                        createdAt lessEq LocalDateTime.now().minusDays(7)
-                    }
+                database.delete(ClanInvitesTable) {
+                    it.createdAt.lt(LocalDateTime.now().minusDays(7))
                 }
             }
         }
@@ -182,7 +223,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     fun clans() {
         val prefix = prefix("Clans")
         logger.info("$prefix Идёт загрузка кланов...")
-        ClanManager.init()
+        ClanManager.init(database)
         logger.info("$prefix Кланы успешно загружены.")
     }
 

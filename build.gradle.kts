@@ -38,11 +38,13 @@ dependencies {
     // MySQL Driver
     implementation("com.mysql:mysql-connector-j:9.2.0")
 
-    // Exposed
-    implementation("org.jetbrains.exposed:exposed-core:0.60.0")
-    implementation("org.jetbrains.exposed:exposed-dao:0.60.0")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.60.0")
-    implementation("org.jetbrains.exposed:exposed-java-time:0.60.0")
+    // Ktorm
+    implementation("org.ktorm:ktorm-core:3.6.0")
+    implementation("org.ktorm:ktorm-support-mysql:3.6.0")
+    implementation("org.ktorm:ktorm-jackson:3.6.0")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")

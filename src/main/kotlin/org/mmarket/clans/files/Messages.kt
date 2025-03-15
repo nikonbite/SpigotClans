@@ -100,6 +100,7 @@ object Messages {
     fun format(message: String) = translateAlternateColorCodes('&', message)
 
     fun Player.message(key: String, replacements: Map<String, String> = emptyMap()) {
-        this.sendMessage(PlaceholderAPI.setPlaceholders(this, get(key, replacements)))
+        if (isOnline)
+            sendMessage(PlaceholderAPI.setPlaceholders(this, get(key, replacements)))
     }
 }
