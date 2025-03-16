@@ -169,6 +169,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         name VARCHAR(256) UNIQUE,
                         colorless_name VARCHAR(12),
                         treasury BIGINT DEFAULT 0,
+                        score BIGINT DEFAULT 0,
                         news JSON DEFAULT ('[]'),
                         motd TEXT DEFAULT '',
                         creator BINARY(16),
@@ -183,6 +184,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         clan_id BINARY(16),
                         uuid BINARY(16) UNIQUE,
+                        name VARCHAR(36),
                         role VARCHAR(50),
                         joined_at DATETIME,
                         FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE

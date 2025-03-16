@@ -6,6 +6,24 @@ enum class ClanMemberRole(val role: String, val priority: Long) {
     COMMODORE("Коммодор", 2),
     ADMIRAL("Адмирал", 3);
 
+    fun next(): ClanMemberRole {
+        return when (this) {
+            RECRUIT -> SENIOR
+            SENIOR -> COMMODORE
+            COMMODORE -> ADMIRAL
+            ADMIRAL -> ADMIRAL
+        }
+    }
+
+    fun previous(): ClanMemberRole {
+        return when (this) {
+            RECRUIT -> RECRUIT
+            SENIOR -> RECRUIT
+            COMMODORE -> SENIOR
+            ADMIRAL -> COMMODORE
+        }
+    }
+
     companion object {
         fun get(value: String): ClanMemberRole {
             return try {

@@ -1,16 +1,17 @@
 package org.mmarket.clans.system.table
 
 import org.ktorm.schema.*
+import org.mmarket.clans.system.util.binaryUuid
 
 object ClansTable : Table<Nothing>("clans") {
-    val id = uuid("id").primaryKey()
+    val id = binaryUuid("id").primaryKey()
     val name = varchar("name")
     val colorlessName = varchar("colorless_name")
     val treasury = long("treasury")
     val score = long("score")
     val news = text("news")
     val motd = varchar("motd")
-    val creator = uuid("creator")
-    val owner = uuid("owner")
+    val creator = binaryUuid("creator")
+    val owner = binaryUuid("owner")
     val createdAt = datetime("created_at")
 }
