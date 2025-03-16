@@ -15,6 +15,9 @@ import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.VaultHook
 import org.mmarket.clans.system.manager.ClanManager
 import org.mmarket.clans.system.model.ClanMemberRole
+import org.mmarket.clans.interfaces.InvitesUi
+import org.mmarket.clans.interfaces.SentInvitesUi
+import org.mmarket.clans.interfaces.ClanShopUi
 
 class ClanCommand :
         SuperCommand(
@@ -107,6 +110,11 @@ class ClanCommand :
             val cost = Settings.double("pricing.create")
             if (Utils.doNotHasNeededAmount(cost, player)) return
 
+            if (args.isEmpty()) {
+                player.message("clan.create.usage")
+                return
+            }
+
             // Валидация имени клана на соответствие требованиям
             val clanName = args[0]
             if (Utils.isNameInvalid(clanName, player)) return
@@ -140,6 +148,11 @@ class ClanCommand :
             // Есть ли у игрока необходимая сумма для переименования
             val cost = Settings.double("pricing.rename")
             if (Utils.doNotHasNeededAmount(cost, player)) return
+
+            if (args.isEmpty()) {
+                player.message("clan.rename.usage")
+                return
+            }
 
             // Валидация имени клана на соответствие требованиям
             val clanName = args[0]
@@ -257,16 +270,22 @@ class ClanCommand :
             val target = getPlayer(targetName)
 
             if (target == null) {
-                player.message("clan.invite.player_not_found", mapOf("player" to targetName))
+                player.message("general.player_not_found", mapOf("player" to targetName))
                 return
             }
 
             if (ClanManager.Members.inClan(target.uniqueId)) {
-                player.message("clan.invite.already_in_clan", mapOf("player" to target.name))
+                player.message("general.player_already_in_clan", mapOf("player" to target.name))
                 return
             }
 
-            if (ClanManager.createInvite(clan.id, target.uniqueId)) {
+            val maxSlots = clan.slots.calculateSlots()
+            if ((clan.members.size + 1) > maxSlots) {
+                player.message("clan.invite.max_slots", mapOf("max_slots" to maxSlots.toString()))
+                return
+            }
+
+            if (ClanManager.createInvite(clan.id, target.uniqueId, target.name)) {
                 player.message("clan.invite.success", mapOf("player" to target.name))
                 target.message(
                         "clan.invite.received",
@@ -303,29 +322,29 @@ class ClanCommand :
             }
 
             val targetName = args[0]
-            val target = getOfflinePlayer(targetName)
+            val target = ClanManager.Invites.getInvite(clan.id, targetName)
 
-            if (target == null || target.uniqueId == null) {
-                player.message("clan.cancel.player_not_found", mapOf("player" to targetName))
+            if (target == null) {
+                player.message("clan.cancel.not_invited", mapOf("player" to targetName))
                 return
             }
 
-            if (ClanManager.removeInvite(clan.id, target.uniqueId)) {
+            if (ClanManager.removeInvite(clan.id, target.playerUuid)) {
                 player.message(
                         "clan.cancel.success",
-                        mapOf("player" to (target.name ?: targetName))
+                        mapOf("player" to target.playerName)
                 )
 
                 // Уведомляем игрока, если он онлайн
-                getPlayer(target.uniqueId)
+                getPlayer(target.playerUuid)
                         ?.message(
                                 "clan.cancel.notify",
-                                mapOf("clan" to clan.name, "player" to player.name)
+                                mapOf("clan" to clan.name, "player" to target.playerName, "executor" to player.name)
                         )
             } else {
                 player.message(
                         "clan.cancel.not_invited",
-                        mapOf("player" to (target.name ?: targetName))
+                        mapOf("player" to target.playerName)
                 )
             }
         }
@@ -349,6 +368,11 @@ class ClanCommand :
             }
 
             val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+
+            if (args.isEmpty()) {
+                player.message("clan.kick.usage")
+                return
+            }
 
             val targetName = args[0]
             val target = ClanManager.Members.member(clan.id, targetName) ?: return
@@ -374,68 +398,23 @@ class ClanCommand :
     /** Открыть меню приглашений */
     class InvitesSubcommand : SuperSubcommand(listOf("invites", "штмшеуы")) {
         override fun perform(player: Player, args: List<String>) {
-            // Проверяем, не состоит ли игрок уже в клане
-            if (Utils.inClan(player)) return
-
-            // Получаем список приглашений
-            val invites = ClanManager.getPlayerInvites(player.uniqueId)
-
-            if (invites.isEmpty()) {
-                player.message("clan.invites.no_invites")
-                return
-            }
-
-            if (args.isEmpty()) {
-                // Выводим список приглашений
-                player.message("clan.invites.header")
-                invites.forEachIndexed { index, clanId ->
-                    val clan = ClanManager.get(clanId)
-                    if (clan != null) {
-                        player.message(
-                                "clan.invites.format",
-                                mapOf("index" to (index + 1).toString(), "clan" to clan.name)
-                        )
-                    }
-                }
-                player.message("clan.invites.footer")
-                return
-            }
-
-            // Принимаем приглашение
-            val index = args[0].toIntOrNull()
-            if (index == null || index <= 0 || index > invites.size) {
-                player.message("clan.invites.invalid_index")
-                return
-            }
-
-            val clanId = invites[index - 1]
-            val clan = ClanManager.get(clanId)
+            val clan = ClanManager.Members.getClan(player.uniqueId)
 
             if (clan == null) {
-                player.message("clan.invites.clan_not_found")
+                InvitesUi(player).open()
                 return
             }
 
-            // Удаляем все приглашения игрока
-            invites.forEach { ClanManager.removeInvite(it, player.uniqueId) }
+            val role = ClanManager.Members.role(player.uniqueId)
+            if (role == null) {
+                return
+            }
 
-            // Добавляем игрока в клан
-            if (ClanManager.addMember(clanId, player.uniqueId, player.name)) {
-                player.message("clan.invites.accepted", mapOf("clan" to clan.name))
-
-                // Уведомляем участников клана
-                clan.members.forEach {
-                    getPlayer(it.uuid)
-                            ?.message("clan.invites.player_joined", mapOf("player" to player.name))
-                }
-
-                // Добавляем новость в клан
-                clan.news.add(
-                        "[${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}] ${player.name} присоединился к клану"
-                )
-                ClanManager.update(clan)
+            if (role.priority >= ClanMemberRole.get(Settings.string("actions.invites")).priority) {
+                SentInvitesUi(player, clan.id).open()
+                return
             } else {
-                player.message("clan.invites.error")
+                player.message("general.already_in_clan")
             }
         }
     }
@@ -447,6 +426,10 @@ class ClanCommand :
                 if (Utils.notInClan(player)) return
 
                 val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+                val onlineMembers = clan.members.filter { getPlayer(it.uuid)?.isOnline == true }.size
+
+                val clans = ClanManager.clans()
+                val topPosition = clans.sortedByDescending { it.score }.indexOf(clan) + 1
 
                 player.message(
                         "clan.info.info",
@@ -455,11 +438,11 @@ class ClanCommand :
                             "owner" to (getOfflinePlayer(clan.owner).name ?: ""),
                             "created_at" to clan.createdAt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
                             "score" to clan.score.toString(),
-                            // "top_position" to clan.topPosition.toString(),
+                            "top_position" to topPosition.toString(),
                             "treasury" to clan.treasury.toString(),
                             "members" to clan.members.size.toString(),
-                            // "max_members" to clan.maxMembers.toString(),
-                            // "online" to clan.online.toString()
+                            "max_members" to clan.slots.calculateSlots().toString(),
+                            "online" to onlineMembers.toString()
                         )
                 )
             } else {}
@@ -617,7 +600,11 @@ class ClanCommand :
 
     /** Открывает меню - магазин клана */
     class ShopSubcommand : SuperSubcommand(listOf("shop", "ырщз")) {
-        override fun perform(player: Player, args: List<String>) {}
+        override fun perform(player: Player, args: List<String>) {
+            if (Utils.notInClan(player)) return
+
+            ClanShopUi(player).open()
+        }
     }
 
     /** Повысить соклановца */

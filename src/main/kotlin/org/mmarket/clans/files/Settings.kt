@@ -21,13 +21,11 @@ object Settings {
      * Перезагружает настройки
      */
     fun reload() {
-        plugin.logger.info("Настройка сообщений...")
         val messagesFile = File(plugin.dataFolder, "settings.toml")
         if (!messagesFile.exists()) {
             plugin.saveResource("settings.toml", false)
         }
         settings = org.tomlj.Toml.parse(messagesFile.toPath())
-        plugin.logger.info("Настройки успешно перезагружены!")
     }
 
     fun string(key: String): String {

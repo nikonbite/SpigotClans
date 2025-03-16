@@ -5,6 +5,7 @@ not_in_clan = "&cВы не состоите в клане."
 player_not_in_clan = "&cНа данный момент этот игрок не состоит в клане."
 already_in_clan = "&cВы уже состоите в клане."
 player_already_in_clan = "&cЭтот игрок уже состоит в клане."
+player_not_found = "&cИгрок {player} не найден."
 
 [pending]
 timeout = "&cВремя на принятие решения по действию истекло."
@@ -52,9 +53,18 @@ success = "&aВы успешно покинули клан {name}!"
 
 [clan.invite]
 usage = "&b/clan invite [игрок] &7-&6 Пригласить игрока в клан"
+no_permission = "&cПригласить игрока в клан может только &aКоммодор и выше&c."
+success = "&aВы успешно пригласили игрока {player} в клан {clan}!"
+received = "&aВы были приглашены в клан {clan} игроком {player}! &7(/clan invites)"
+already_invited = "&cИгрок {player} уже приглашён в ваш клан."
+max_slots = "&cВы не можете пригласить больше {max_slots} игроков в ваш клан."
 
 [clan.cancel]
 usage = "&b/clan cancel [игрок] &7-&6 Отменить предложение"
+no_permission = "&cОтменить предложение может только &aСтаршина и выше&c."
+success = "&aВы успешно отменили предложение на вступление в клан {clan} для игрока {player}!"
+not_invited = "&cИгрок {player} не приглашён в ваш клан."
+notify = "&b{executor} &cотменил предложение на вступление в клан {clan} для игрока {player}!"
 
 [clan.kick]
 usage = "&b/clan kick [игрок] &7-&6 Выгнать игрока из клана"

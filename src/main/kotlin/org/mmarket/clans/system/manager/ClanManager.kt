@@ -6,9 +6,11 @@ import org.ktorm.database.Database
 import org.ktorm.dsl.*
 import org.ktorm.entity.*
 import org.mmarket.clans.api.utility.FixedSizeList
+import org.mmarket.clans.system.model.ClanInviteModel
 import org.mmarket.clans.system.model.ClanMemberModel
 import org.mmarket.clans.system.model.ClanMemberRole
 import org.mmarket.clans.system.model.ClanModel
+import org.mmarket.clans.system.model.ClanSlots
 import org.mmarket.clans.system.table.ClanInvitesTable
 import org.mmarket.clans.system.table.ClanMembersTable
 import org.mmarket.clans.system.table.ClansTable
@@ -26,16 +28,18 @@ object ClanManager {
         database = db
 
         // Загружаем все кланы
-        val clans =
-                database.from(ClansTable).select().map { row ->
-                    val clanId = row[ClansTable.id]!!
-                    val clan = convertRowToClanModel(row)
-                    clansCache[clanId] = clan
-                    clan
-                }
+        database.from(ClansTable).select().map { row ->
+            val clanId = row[ClansTable.id]!!
+            val clan = convertRowToClanModel(row)
+            clansCache[clanId] = clan
+            clan
+        }
 
         // Инициализируем кэш участников
         Members.init()
+
+        // Инициализируем кэш приглашений
+        Invites.init()
     }
 
     /**
@@ -125,6 +129,10 @@ object ClanManager {
             set(it.creator, creator)
             set(it.owner, creator)
             set(it.createdAt, now)
+            set(it.slots, ClanSlots.INITIAL)
+            set(it.chatPurchased, false)
+            set(it.motdPurchased, false)
+            set(it.partyPurchased, false)
         }
 
         // Создаем модель клана
@@ -142,7 +150,11 @@ object ClanManager {
                         creator = creator,
                         owner = creator,
                         members = mutableSetOf(),
-                        createdAt = now
+                        createdAt = now,
+                        slots = ClanSlots.INITIAL,
+                        chatPurchased = false,
+                        motdPurchased = false,
+                        partyPurchased = false
                 )
 
         // Добавляем владельца как участника с ролью ADMIRAL
@@ -167,6 +179,10 @@ object ClanManager {
             set(it.news, "[${clan.news.toList().joinToString(",") { "\"$it\"" }}]")
             set(it.motd, clan.motd)
             set(it.owner, clan.owner)
+            set(it.slots, clan.slots)
+            set(it.chatPurchased, clan.chatPurchased)
+            set(it.motdPurchased, clan.motdPurchased)
+            set(it.partyPurchased, clan.partyPurchased)
             where { it.id eq clan.id }
         }
 
@@ -260,6 +276,9 @@ object ClanManager {
 
             // Обновляем кэш участников
             Members.updateCacheOnAdd(clanId, memberModel)
+
+            // Удаляем приглашение, если оно было
+            Invites.removeInvite(clanId, playerUuid)
         }
 
         return true
@@ -349,48 +368,8 @@ object ClanManager {
      * @param playerUuid UUID игрока
      * @return true, если приглашение успешно создано
      */
-    fun createInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        // Проверяем, существует ли клан
-        val clanExists =
-                database.from(ClansTable)
-                        .select(count(ClansTable.id))
-                        .where { ClansTable.id eq clanId }
-                        .map { it.getInt(1) }
-                        .first() > 0
-
-        if (!clanExists) return false
-
-        // Проверяем, не состоит ли игрок уже в клане
-        val alreadyInClan =
-                database.from(ClanMembersTable)
-                        .select(count(ClanMembersTable.id))
-                        .where { ClanMembersTable.uuid eq playerUuid }
-                        .map { it.getInt(1) }
-                        .first() > 0
-
-        if (alreadyInClan) return false
-
-        // Проверяем, нет ли уже приглашения
-        val alreadyInvited =
-                database.from(ClanInvitesTable)
-                        .select(count(ClanInvitesTable.id))
-                        .where {
-                            (ClanInvitesTable.clanId eq clanId) and
-                                    (ClanInvitesTable.uuid eq playerUuid)
-                        }
-                        .map { it.getInt(1) }
-                        .first() > 0
-
-        if (alreadyInvited) return false
-
-        // Создаем приглашение
-        database.insert(ClanInvitesTable) {
-            set(it.clanId, clanId)
-            set(it.uuid, playerUuid)
-            set(it.createdAt, LocalDateTime.now())
-        }
-
-        return true
+    fun createInvite(clanId: UUID, playerUuid: UUID, playerName: String): Boolean {
+        return Invites.createInvite(clanId, playerUuid, playerName)
     }
 
     /**
@@ -401,9 +380,28 @@ object ClanManager {
      * @return true, если приглашение успешно удалено
      */
     fun removeInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        return database.delete(ClanInvitesTable) {
-            (it.clanId eq clanId) and (it.uuid eq playerUuid)
-        } > 0
+        return Invites.removeInvite(clanId, playerUuid)
+    }
+
+    /**
+     * Проверяет, существует ли приглашение в клан
+     *
+     * @param clanId ID клана
+     * @param playerUuid UUID игрока
+     * @return true, если приглашение существует
+     */
+    fun hasInvite(clanId: UUID, playerUuid: UUID): Boolean {
+        return Invites.hasInvite(clanId, playerUuid)
+    }
+
+    /**
+     * Получает список всех приглашений игрока
+     *
+     * @param playerUuid UUID игрока
+     * @return список ID кланов, в которые приглашен игрок
+     */
+    fun getPlayerInvites(playerUuid: UUID): List<UUID> {
+        return Invites.getPlayerInvites(playerUuid)
     }
 
     /**
@@ -421,6 +419,9 @@ object ClanManager {
                         .map { row -> row[ClanMembersTable.uuid]!! }
                         .toList()
 
+        // Получаем список приглашений клана для обновления кэша
+        val invites = Invites.getClanInvites(clanId)
+
         // Удаляем клан (каскадно удалятся участники и приглашения)
         val result = database.delete(ClansTable) { it.id eq clanId } > 0
 
@@ -430,39 +431,474 @@ object ClanManager {
 
             // Обновляем кэш участников
             members.forEach { Members.updateCacheOnRemove(it) }
+
+            // Обновляем кэш приглашений
+            invites.forEach { Invites.updateCacheOnRemove(clanId, it) }
         }
 
         return result
     }
 
-    /**
-     * Проверяет, существует ли приглашение в клан
-     *
-     * @param clanId ID клана
-     * @param playerUuid UUID игрока
-     * @return true, если приглашение существует
-     */
-    fun hasInvite(clanId: UUID, playerUuid: UUID): Boolean {
-        return database.from(ClanInvitesTable)
-                .select(count(ClanInvitesTable.id))
-                .where {
-                    (ClanInvitesTable.clanId eq clanId) and (ClanInvitesTable.uuid eq playerUuid)
-                }
-                .map { it.getInt(1) }
-                .first() > 0
-    }
+    /** Объект для работы с приглашениями в кланы */
+    object Invites {
+        /** Ключ - UUID игрока, значение - список моделей приглашений */
+        private val playerInvitesCache = mutableMapOf<UUID, MutableList<ClanInviteModel>>()
 
-    /**
-     * Получает список всех приглашений игрока
-     *
-     * @param playerUuid UUID игрока
-     * @return список ID кланов, в которые приглашен игрок
-     */
-    fun getPlayerInvites(playerUuid: UUID): List<UUID> {
-        return database.from(ClanInvitesTable)
-                .select(ClanInvitesTable.clanId)
-                .where { ClanInvitesTable.uuid eq playerUuid }
-                .map { it[ClanInvitesTable.clanId]!! }
+        /** Ключ - ID клана, значение - список моделей приглашений */
+        private val clanInvitesCache = mutableMapOf<UUID, MutableList<ClanInviteModel>>()
+
+        /** Инициализирует кэш приглашений */
+        fun init() {
+            database.from(ClanInvitesTable).select().map { row ->
+                val playerUuid = row[ClanInvitesTable.uuid]!!
+                val clanId = row[ClanInvitesTable.clanId]!!
+                val playerName = row[ClanInvitesTable.name]!!
+                val createdAt = row[ClanInvitesTable.createdAt]!!
+
+                val inviteModel =
+                        ClanInviteModel(
+                                clanId = clanId,
+                                playerUuid = playerUuid,
+                                playerName = playerName,
+                                createdAt = createdAt
+                        )
+
+                // Добавляем в кэш приглашений игрока
+                if (!playerInvitesCache.containsKey(playerUuid)) {
+                    playerInvitesCache[playerUuid] = mutableListOf()
+                }
+                playerInvitesCache[playerUuid]?.add(inviteModel)
+
+                // Добавляем в кэш приглашений клана
+                if (!clanInvitesCache.containsKey(clanId)) {
+                    clanInvitesCache[clanId] = mutableListOf()
+                }
+                clanInvitesCache[clanId]?.add(inviteModel)
+            }
+        }
+
+        /**
+         * Создает приглашение в клан
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @param playerName Ник игрока
+         * @return true, если приглашение успешно создано
+         */
+        fun createInvite(clanId: UUID, playerUuid: UUID, playerName: String): Boolean {
+            // Проверяем, существует ли клан
+            val clanExists =
+                    database.from(ClansTable)
+                            .select(count(ClansTable.id))
+                            .where { ClansTable.id eq clanId }
+                            .map { it.getInt(1) }
+                            .first() > 0
+
+            if (!clanExists) return false
+
+            // Проверяем, не состоит ли игрок уже в клане
+            val alreadyInClan = Members.inClan(playerUuid)
+
+            if (alreadyInClan) return false
+
+            // Проверяем, нет ли уже приглашения
+            if (hasInvite(clanId, playerUuid)) return false
+
+            val now = LocalDateTime.now()
+
+            // Создаем приглашение
+            database.insert(ClanInvitesTable) {
+                set(it.clanId, clanId)
+                set(it.uuid, playerUuid)
+                set(it.name, playerName)
+                set(it.createdAt, now)
+            }
+
+            // Создаем модель приглашения
+            val inviteModel =
+                    ClanInviteModel(
+                            clanId = clanId,
+                            playerUuid = playerUuid,
+                            playerName = playerName,
+                            createdAt = now
+                    )
+
+            // Обновляем кэш
+            updateCacheOnAdd(inviteModel)
+
+            return true
+        }
+
+        /**
+         * Удаляет приглашение в клан
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return true, если приглашение успешно удалено
+         */
+        fun removeInvite(clanId: UUID, playerUuid: UUID): Boolean {
+            val result =
+                    database.delete(ClanInvitesTable) {
+                        (it.clanId eq clanId) and (it.uuid eq playerUuid)
+                    } > 0
+
+            // Обновляем кэш
+            if (result) {
+                updateCacheOnRemove(clanId, playerUuid)
+            }
+
+            return result
+        }
+
+        /**
+         * Удаляет все приглашения игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return количество удаленных приглашений
+         */
+        fun removeAllPlayerInvites(playerUuid: UUID): Int {
+            // Получаем список приглашений игрока
+            val invites = getPlayerInviteModels(playerUuid)
+
+            // Удаляем все приглашения
+            val result = database.delete(ClanInvitesTable) { it.uuid eq playerUuid }
+
+            // Обновляем кэш
+            invites.forEach { invite -> updateCacheOnRemove(invite.clanId, invite.playerUuid) }
+
+            return result
+        }
+
+        /**
+         * Удаляет все приглашения в клан
+         *
+         * @param clanId ID клана
+         * @return количество удаленных приглашений
+         */
+        fun removeAllClanInvites(clanId: UUID): Int {
+            // Получаем список приглашений клана
+            val invites = getClanInviteModels(clanId)
+
+            // Удаляем все приглашения
+            val result = database.delete(ClanInvitesTable) { it.clanId eq clanId }
+
+            // Обновляем кэш
+            invites.forEach { invite -> updateCacheOnRemove(invite.clanId, invite.playerUuid) }
+
+            return result
+        }
+
+        /**
+         * Проверяет, существует ли приглашение в клан
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return true, если приглашение существует
+         */
+        fun hasInvite(clanId: UUID, playerUuid: UUID): Boolean {
+            // Проверяем кэш
+            if (playerInvitesCache.containsKey(playerUuid)) {
+                return playerInvitesCache[playerUuid]?.any { it.clanId == clanId } ?: false
+            }
+
+            // Если нет в кэше, проверяем в БД
+            return database.from(ClanInvitesTable)
+                    .select(count(ClanInvitesTable.id))
+                    .where {
+                        (ClanInvitesTable.clanId eq clanId) and
+                                (ClanInvitesTable.uuid eq playerUuid)
+                    }
+                    .map { it.getInt(1) }
+                    .first() > 0
+        }
+
+        /**
+         * Получает список всех приглашений игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return список ID кланов, в которые приглашен игрок
+         */
+        fun getPlayerInvites(playerUuid: UUID): List<UUID> {
+            return getPlayerInviteModels(playerUuid).map { it.clanId }
+        }
+
+        /**
+         * Получает список всех моделей приглашений игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return список моделей приглашений
+         */
+        fun getPlayerInviteModels(playerUuid: UUID): List<ClanInviteModel> {
+            // Проверяем кэш
+            if (playerInvitesCache.containsKey(playerUuid)) {
+                return playerInvitesCache[playerUuid]?.toList() ?: emptyList()
+            }
+
+            // Если нет в кэше, загружаем из БД
+            val invites =
+                    database.from(ClanInvitesTable)
+                            .select()
+                            .where { ClanInvitesTable.uuid eq playerUuid }
+                            .map { row ->
+                                ClanInviteModel(
+                                        clanId = row[ClanInvitesTable.clanId]!!,
+                                        playerUuid = row[ClanInvitesTable.uuid]!!,
+                                        playerName = row[ClanInvitesTable.name]!!,
+                                        createdAt = row[ClanInvitesTable.createdAt]!!
+                                )
+                            }
+                            .toList()
+
+            // Обновляем кэш
+            playerInvitesCache[playerUuid] = invites.toMutableList()
+
+            // Обновляем кэш кланов
+            invites.forEach { invite ->
+                if (!clanInvitesCache.containsKey(invite.clanId)) {
+                    clanInvitesCache[invite.clanId] = mutableListOf()
+                }
+                clanInvitesCache[invite.clanId]?.add(invite)
+            }
+
+            return invites
+        }
+
+        /**
+         * Получает список всех приглашений в клан
+         *
+         * @param clanId ID клана
+         * @return список UUID игроков, приглашенных в клан
+         */
+        fun getClanInvites(clanId: UUID): List<UUID> {
+            return getClanInviteModels(clanId).map { it.playerUuid }
+        }
+
+        /**
+         * Получает список всех моделей приглашений в клан
+         *
+         * @param clanId ID клана
+         * @return список моделей приглашений
+         */
+        fun getClanInviteModels(clanId: UUID): List<ClanInviteModel> {
+            // Проверяем кэш
+            if (clanInvitesCache.containsKey(clanId)) {
+                return clanInvitesCache[clanId]?.toList() ?: emptyList()
+            }
+
+            // Если нет в кэше, загружаем из БД
+            val invites =
+                    database.from(ClanInvitesTable)
+                            .select()
+                            .where { ClanInvitesTable.clanId eq clanId }
+                            .map { row ->
+                                ClanInviteModel(
+                                        clanId = row[ClanInvitesTable.clanId]!!,
+                                        playerUuid = row[ClanInvitesTable.uuid]!!,
+                                        playerName = row[ClanInvitesTable.name]!!,
+                                        createdAt = row[ClanInvitesTable.createdAt]!!
+                                )
+                            }
+                            .toList()
+
+            // Обновляем кэш
+            clanInvitesCache[clanId] = invites.toMutableList()
+
+            // Обновляем кэш игроков
+            invites.forEach { invite ->
+                if (!playerInvitesCache.containsKey(invite.playerUuid)) {
+                    playerInvitesCache[invite.playerUuid] = mutableListOf()
+                }
+                playerInvitesCache[invite.playerUuid]?.add(invite)
+            }
+
+            return invites
+        }
+
+        /**
+         * Получает количество приглашений в клан
+         *
+         * @param clanId ID клана
+         * @return количество приглашений
+         */
+        fun getClanInvitesCount(clanId: UUID): Int {
+            // Проверяем кэш
+            if (clanInvitesCache.containsKey(clanId)) {
+                return clanInvitesCache[clanId]?.size ?: 0
+            }
+
+            // Если нет в кэше, считаем в БД
+            return database.from(ClanInvitesTable)
+                    .select(count(ClanInvitesTable.id))
+                    .where { ClanInvitesTable.clanId eq clanId }
+                    .map { it.getInt(1) }
+                    .first()
+        }
+
+        /**
+         * Получает количество приглашений игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return количество приглашений
+         */
+        fun getPlayerInvitesCount(playerUuid: UUID): Int {
+            // Проверяем кэш
+            if (playerInvitesCache.containsKey(playerUuid)) {
+                return playerInvitesCache[playerUuid]?.size ?: 0
+            }
+
+            // Если нет в кэше, считаем в БД
+            return database.from(ClanInvitesTable)
+                    .select(count(ClanInvitesTable.id))
+                    .where { ClanInvitesTable.uuid eq playerUuid }
+                    .map { it.getInt(1) }
+                    .first()
+        }
+
+        /**
+         * Получает модель приглашения
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return модель приглашения или null, если не найдено
+         */
+        fun getInvite(clanId: UUID, playerUuid: UUID): ClanInviteModel? {
+            // Проверяем кэш
+            playerInvitesCache[playerUuid]?.find { it.clanId == clanId }?.let {
+                return it
+            }
+
+            // Если нет в кэше, ищем в БД
+            return database.from(ClanInvitesTable)
+                    .select()
+                    .where {
+                        (ClanInvitesTable.clanId eq clanId) and
+                                (ClanInvitesTable.uuid eq playerUuid)
+                    }
+                    .map { row ->
+                        ClanInviteModel(
+                                clanId = row[ClanInvitesTable.clanId]!!,
+                                playerUuid = row[ClanInvitesTable.uuid]!!,
+                                playerName = row[ClanInvitesTable.name]!!,
+                                createdAt = row[ClanInvitesTable.createdAt]!!
+                        )
+                    }
+                    .firstOrNull()
+                    ?.also { invite ->
+                        // Обновляем кэш
+                        updateCacheOnAdd(invite)
+                    }
+        }
+
+        /**
+         * Получает модель приглашения
+         *
+         * @param clanId ID клана
+         * @param playerName Ник игрока
+         * @return модель приглашения или null, если не найдено
+         */
+        fun getInvite(clanId: UUID, playerName: String): ClanInviteModel? {
+            return database.from(ClanInvitesTable)
+                    .select()
+                    .where {
+                        (ClanInvitesTable.clanId eq clanId) and
+                                (ClanInvitesTable.name eq playerName)
+                    }
+                    .map { row ->
+                        ClanInviteModel(
+                                clanId = row[ClanInvitesTable.clanId]!!,
+                                playerUuid = row[ClanInvitesTable.uuid]!!,
+                                playerName = row[ClanInvitesTable.name]!!,
+                                createdAt = row[ClanInvitesTable.createdAt]!!
+                        )
+                    }
+                    .firstOrNull()
+                    ?.also { invite ->
+                        // Обновляем кэш
+                        updateCacheOnAdd(invite)
+                    }
+        }
+
+        /**
+         * Обновляет кэш при добавлении приглашения
+         *
+         * @param invite модель приглашения
+         */
+        internal fun updateCacheOnAdd(invite: ClanInviteModel) {
+            val clanId = invite.clanId
+            val playerUuid = invite.playerUuid
+
+            // Обновляем кэш приглашений игрока
+            if (!playerInvitesCache.containsKey(playerUuid)) {
+                playerInvitesCache[playerUuid] = mutableListOf()
+            }
+            if (!playerInvitesCache[playerUuid]?.any { it.clanId == clanId }!!) {
+                playerInvitesCache[playerUuid]?.add(invite)
+            }
+
+            // Обновляем кэш приглашений клана
+            if (!clanInvitesCache.containsKey(clanId)) {
+                clanInvitesCache[clanId] = mutableListOf()
+            }
+            if (!clanInvitesCache[clanId]?.any { it.playerUuid == playerUuid }!!) {
+                clanInvitesCache[clanId]?.add(invite)
+            }
+        }
+
+        /**
+         * Обновляет кэш при удалении приглашения
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         */
+        internal fun updateCacheOnRemove(clanId: UUID, playerUuid: UUID) {
+            // Обновляем кэш приглашений игрока
+            playerInvitesCache[playerUuid]?.removeIf { it.clanId == clanId }
+            if (playerInvitesCache[playerUuid]?.isEmpty() == true) {
+                playerInvitesCache.remove(playerUuid)
+            }
+
+            // Обновляем кэш приглашений клана
+            clanInvitesCache[clanId]?.removeIf { it.playerUuid == playerUuid }
+            if (clanInvitesCache[clanId]?.isEmpty() == true) {
+                clanInvitesCache.remove(clanId)
+            }
+        }
+
+        /**
+         * Принимает приглашение в клан
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return true, если приглашение успешно принято
+         */
+        fun acceptInvite(clanId: UUID, playerUuid: UUID): Boolean {
+            // Проверяем, существует ли приглашение
+            if (!hasInvite(clanId, playerUuid)) return false
+
+            // Получаем имя игрока из базы данных
+            val playerName =
+                    database.from(ClanMembersTable)
+                            .select(ClanMembersTable.name)
+                            .where { ClanMembersTable.uuid eq playerUuid }
+                            .map { it[ClanMembersTable.name] }
+                            .firstOrNull()
+                            ?: return false
+
+            // Удаляем приглашение и добавляем игрока в клан
+            removeInvite(clanId, playerUuid)
+            return addMember(clanId, playerUuid, playerName)
+        }
+
+        /**
+         * Отклоняет приглашение в клан
+         *
+         * @param clanId ID клана
+         * @param playerUuid UUID игрока
+         * @return true, если приглашение успешно отклонено
+         */
+        fun declineInvite(clanId: UUID, playerUuid: UUID): Boolean {
+            return removeInvite(clanId, playerUuid)
+        }
     }
 
     object Members {
@@ -827,7 +1263,11 @@ object ClanManager {
                 creator = row[ClansTable.creator] ?: clanId,
                 owner = row[ClansTable.owner] ?: clanId,
                 members = members,
-                createdAt = row[ClansTable.createdAt] ?: LocalDateTime.now()
+                createdAt = row[ClansTable.createdAt] ?: LocalDateTime.now(),
+                slots = row[ClansTable.slots] ?: ClanSlots.INITIAL,
+                chatPurchased = row[ClansTable.chatPurchased] ?: false,
+                motdPurchased = row[ClansTable.motdPurchased] ?: false,
+                partyPurchased = row[ClansTable.partyPurchased] ?: false
         )
     }
 }

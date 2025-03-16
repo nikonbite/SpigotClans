@@ -3,6 +3,7 @@ package org.mmarket.clans.interfaces
 import dev.triumphteam.gui.builder.item.ItemBuilder
 import dev.triumphteam.gui.guis.Gui
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
@@ -11,18 +12,20 @@ import org.mmarket.clans.files.Interfaces
 import org.mmarket.clans.system.manager.ClanManager
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 /**
- * UI для отображения приглашений в кланы для игрока
+ * UI для отображения отправленных приглашений в клан
+ * Доступно только для коммодоров и адмиралов клана
  */
-class InvitesUi(private val player: Player) : Ui {    
-    val invites = ClanManager.Invites.getPlayerInviteModels(player.uniqueId)
+class SentInvitesUi(private val player: Player, private val clanId: UUID) : Ui {    
+    val invites = ClanManager.Invites.getClanInviteModels(clanId)
         .filter { ChronoUnit.DAYS.between(it.createdAt, LocalDateTime.now()) < 7 } // Фильтруем приглашения старше недели
         .sortedByDescending { it.createdAt }
         .toMutableList()
     
     val gui: Gui = Gui.gui()
-        .title(Interfaces.string("player_invites.title").component())
+        .title(Interfaces.string("sent_invites.title").component())
         .rows(if (invites.size > 9) 2 else 1)
         .create()
 
@@ -31,7 +34,7 @@ class InvitesUi(private val player: Player) : Ui {
             gui.setItem(
                 4,
                 ItemBuilder.from(Material.valueOf(Interfaces.string("common.no_invites_item")))
-                    .name(Interfaces.string("player_invites.no_invites_text").component())
+                    .name(Interfaces.string("sent_invites.no_invites_text").component())
                     .asGuiItem()
             )
             gui.open(player)
@@ -45,30 +48,23 @@ class InvitesUi(private val player: Player) : Ui {
 
         for (i in 0 until invites.size) {
             val invite = invites[i]
-            val clan = ClanManager.get(invite.clanId)
-
-            if (clan == null) continue
-
+            val playerName = Bukkit.getOfflinePlayer(invite.playerUuid).name ?: invite.playerUuid.toString()
+            
             gui.setItem(
                 i,
-                ItemBuilder.from(Material.valueOf(Interfaces.string("player_invites.invite_item")))
-                    .name(Interfaces.string("player_invites.invite_name", 
-                        "clan_name" to clan.name).component())
+                ItemBuilder.from(Material.valueOf(Interfaces.string("sent_invites.invite_item")))
+                    .name(Interfaces.string("sent_invites.invite_name", 
+                        "player_name" to playerName).component())
                     .lore(
-                        Interfaces.string("player_invites.invite_lore_accept").component(),
-                        Interfaces.string("player_invites.invite_lore_decline").component()
+                        Interfaces.string("sent_invites.invite_lore_cancel").component()
                     )
                     .asGuiItem { event ->
                         if (event.click == ClickType.LEFT) {
-                            ClanManager.Invites.acceptInvite(invite.clanId, player.uniqueId)
+                            ClanManager.Invites.removeInvite(clanId, invite.playerUuid)
                             player.closeInventory()
-                            player.sendMessage(Interfaces.string("player_invites.invite_accepted_message", 
-                                "clan_name" to clan.name).component())
-                        } else if (event.click == ClickType.RIGHT) {
-                            ClanManager.Invites.declineInvite(invite.clanId, player.uniqueId)
-                            player.closeInventory()
-                            player.sendMessage(Interfaces.string("player_invites.invite_declined_message", 
-                                "clan_name" to clan.name).component())
+                            player.sendMessage(Interfaces.string("sent_invites.invite_cancelled_message", 
+                                "player_name" to playerName).component())
+                            open() 
                         }
                     }
             )
@@ -78,4 +74,4 @@ class InvitesUi(private val player: Player) : Ui {
     }
 
     fun String.component() = LegacyComponentSerializer.legacySection().deserialize(this)
-}
+} 

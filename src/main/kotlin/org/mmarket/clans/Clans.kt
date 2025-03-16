@@ -13,6 +13,7 @@ import org.mmarket.clans.api.pending.ActionManager
 import org.mmarket.clans.command.AclanCommand
 import org.mmarket.clans.command.CcCommand
 import org.mmarket.clans.command.ClanCommand
+import org.mmarket.clans.files.Interfaces
 import org.mmarket.clans.files.Messages
 import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.CitizensHook
@@ -67,6 +68,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     fun reload() {
         Settings.reload()
         Messages.reload()
+        Interfaces.reload()
     }
 
     fun unload() {
@@ -95,6 +97,10 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         logger.info("$prefix Идёт загрузка настроек...")
         Settings.init()
         logger.info("$prefix Настройки успешно загружены.")
+
+        logger.info("$prefix Идёт загрузка интерфейсов...")
+        Interfaces.init()
+        logger.info("$prefix Интерфейсы успешно загружены.")
     }
 
     private fun hook() {
@@ -174,7 +180,11 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         motd TEXT DEFAULT '',
                         creator BINARY(16),
                         owner BINARY(16),
-                        created_at DATETIME
+                        created_at DATETIME,
+                        slots VARCHAR(50),
+                        chat_purchased BOOLEAN DEFAULT FALSE,
+                        motd_purchased BOOLEAN DEFAULT FALSE,
+                        party_purchased BOOLEAN DEFAULT FALSE
                     )
                 """)
                 
@@ -197,6 +207,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         clan_id BINARY(16),
                         uuid BINARY(16),
+                        name TEXT,
                         created_at DATETIME,
                         FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
                     )

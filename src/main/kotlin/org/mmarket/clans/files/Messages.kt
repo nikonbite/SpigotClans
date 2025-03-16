@@ -23,13 +23,11 @@ object Messages {
      * Перезагружает сообщения из файла
      */
     fun reload() {
-        plugin.logger.info("Перезагрузка сообщений...")
         val messagesFile = File(plugin.dataFolder, "messages.toml")
         if (!messagesFile.exists()) {
             plugin.saveResource("messages.toml", false)
         }
         messages = org.tomlj.Toml.parse(messagesFile.toPath())
-        plugin.logger.info("Сообщения успешно перезагружены!")
     }
 
     /**

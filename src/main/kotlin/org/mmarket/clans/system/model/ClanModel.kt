@@ -16,4 +16,8 @@ data class ClanModel(
     var owner: UUID,
     var members: MutableSet<ClanMemberModel>,
     val createdAt: LocalDateTime,
+    val slots: ClanSlots,
+    val chatPurchased: Boolean,
+    val motdPurchased: Boolean,
+    val partyPurchased: Boolean,
 ) {}

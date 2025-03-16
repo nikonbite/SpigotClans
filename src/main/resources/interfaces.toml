@@ -1,0 +1,61 @@
+# Настройки интерфейсов
+
+# Общие настройки
+[common]
+no_invites_item = "PAPER"
+
+# Интерфейс приглашений для игрока
+[player_invites]
+title = "&bПриглашения в кланы"
+no_invites_text = "&cУ вас нет приглашений"
+invite_item = "PAPER"
+invite_name = "&3Вас пригласили в клан \"{clan_name}\""
+invite_lore_accept = "&3Чтобы &aпринять &3приглашение в клан, нажмите &bЛКМ"
+invite_lore_decline = "&3Чтобы &cотменить &3приглашение в клан, нажмите &bПКМ"
+invite_accepted_message = "&aВы приняли приглашение в клан \"{clan_name}\""
+invite_declined_message = "&cВы отклонили приглашение в клан \"{clan_name}\""
+
+# Интерфейс отправленных приглашений для коммодоров и адмиралов
+[sent_invites]
+title = "&bОтправленные приглашения"
+no_invites_text = "&cНет отправленных приглашений"
+invite_item = "PLAYER_HEAD"
+invite_name = "&b&l\"{player_name}\""
+invite_lore_cancel = "&3Чтобы &cотменить &3приглашение в клан, нажмите &bЛКМ"
+invite_cancelled_message = "&cВы отменили приглашение игрока \"{player_name}\" в клан"
+
+[clan_shop]
+title = "&bМагазин клана"
+
+[clan_shop.ads]
+name = "&3Реклама"
+lore = "&7Покупайте рекламу для вашего клана"
+
+[clan_shop.motd]
+name = "&3MOTD"
+lore = "&7Покупайте MOTD для вашего клана"
+
+[clan_shop.chat]
+name = "&3Чат"
+lore = "&7Покупайте чат для вашего клана"
+
+[clan_shop.party]
+name = "&3Party"
+lore = "&7Покупайте Party для вашего клана"
+
+[clan_shop.slots]
+name = "&3Слоты"
+lore = "&7Покупайте слоты для вашего клана"
+
+[clan_shop.upgrade]
+name = "&3Улучшение"
+lore = "&7Покупайте улучшение для вашего клана"
+
+[clan_shop.rename]
+name = "&3Переименование"
+lore = "&7Покупайте переименование для вашего клана"
+
+[clan_shop.treasury]
+name = "&3Текущий баланс"
+lore = "&7Посмотрите текущий баланс вашего клана"
+

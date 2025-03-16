@@ -59,7 +59,10 @@ tasks {
         archiveVersion.set("")
 
         relocate("dev.triumphteam.gui", "org.mmarket.clans.api.gui")
+        relocate("com.mysql", "org.mmarket.clans.api.mysql")
         relocate("org.tomlj", "org.mmarket.clans.api.toml")
+        relocate("org.ktorm", "org.mmarket.clans.api.ktorm")
+        relocate("com.google.code.gson", "org.mmarket.clans.api.gson")
     }
 
     build { dependsOn("shadowJar") }
@@ -77,7 +80,7 @@ tasks {
         jvmArgs("-DPaper.IgnoreJavaVersion=true")
         downloadPlugins {
             url("https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar")
-            url("https://ci.citizensnpcs.co/job/citizens2/lastSuccessfulBuild/artifact/dist/target/Citizens-2.0.37-b3755.jar")
+            url("https://ci.citizensnpcs.co/job/Citizens2/2318/artifact/dist/target/Citizens-2.0.27-b2318.jar")
             hangar("PlaceholderAPI", "2.11.6")
             modrinth("essentialsx", "2.20.1")
         }
