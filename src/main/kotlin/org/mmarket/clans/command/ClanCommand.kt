@@ -2,8 +2,7 @@ package org.mmarket.clans.command
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import org.bukkit.Bukkit.getOfflinePlayer
-import org.bukkit.Bukkit.getPlayer
+import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.mmarket.clans.Clans
 import org.mmarket.clans.api.command.SuperCommand
@@ -13,11 +12,12 @@ import org.mmarket.clans.api.utility.NamingUtility.validateClanName
 import org.mmarket.clans.files.Messages.message
 import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.VaultHook
-import org.mmarket.clans.system.manager.ClanManager
-import org.mmarket.clans.system.model.ClanMemberRole
+import org.mmarket.clans.interfaces.ClanShopUi
 import org.mmarket.clans.interfaces.InvitesUi
 import org.mmarket.clans.interfaces.SentInvitesUi
-import org.mmarket.clans.interfaces.ClanShopUi
+import org.mmarket.clans.system.manager.ClanManager
+import org.mmarket.clans.system.model.ClanMemberRole
+import org.mmarket.clans.system.model.ClanModel
 
 class ClanCommand :
         SuperCommand(
@@ -54,10 +54,103 @@ class ClanCommand :
                 )
         ) {
     override fun perform(player: Player, args: List<String>) {
+        if (args.isEmpty()) {
+            help(player)
+            return
+        }
+        
         performSubCommands(player, args)
     }
 
-    override fun help(player: Player) {}
+    override fun help(player: Player) {
+        player.message("clan.header")
+        
+        // Проверяем, состоит ли игрок в клане
+        val inClan = ClanManager.Members.inClan(player.uniqueId)
+        val role = if (inClan) ClanManager.Members.role(player.uniqueId) else null
+        
+        // Команды для всех игроков
+        player.message("clan.info.usage")
+        player.message("clan.top.usage")
+        player.message("clan.score.usage")
+        
+        if (!inClan) {
+            // Команды для игроков без клана
+            if (player.hasPermission(Settings.string("permissions.create"))) {
+                player.message("clan.create.usage")
+            }
+            player.message("clan.invites.usage")
+        } else {
+            // Базовые команды для всех участников клана
+            player.message("clan.list.usage")
+            player.message("clan.online.usage")
+            player.message("clan.news.usage")
+            player.message("clan.topmembers.usage")
+            player.message("clan.antitopmembers.usage")
+            player.message("clan.shop.usage")
+            
+            // Проверяем, приобретена ли функция чата
+            val clan = ClanManager.Members.getClan(player.uniqueId)
+            if (clan != null && clan.chatPurchased) {
+                player.message("clan.chat.usage")
+            }
+            
+            // Проверяем, приобретена ли функция MOTD
+            if (clan != null && clan.motdPurchased) {
+                player.message("clan.motd.usage")
+            }
+            
+            // Проверяем, приобретена ли функция party
+            if (clan != null && clan.partyPurchased) {
+                player.message("clan.party.usage")
+            }
+            
+            // Команды в зависимости от роли
+            if (role != null) {
+                // Рекрут может покинуть клан и пополнить казну
+                if (role.priority >= ClanMemberRole.RECRUIT.priority) {
+                    player.message("clan.leave.usage")
+                    player.message("clan.donate.usage")
+                }
+                
+                // Старшина может приглашать и отменять приглашения
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.invite")).priority) {
+                    player.message("clan.invite.usage")
+                }
+                
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.cancel")).priority) {
+                    player.message("clan.cancel.usage")
+                }
+                
+                // Коммодор может выгнать, повысить и понизить
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.kick")).priority) {
+                    player.message("clan.kick.usage")
+                }
+                
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.promote")).priority) {
+                    player.message("clan.promote.usage")
+                }
+                
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.demote")).priority) {
+                    player.message("clan.demote.usage")
+                }
+                
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.invites")).priority) {
+                    player.message("clan.invites.usage")
+                }
+                
+                // Адмирал может переименовать и распустить клан
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.rename")).priority) {
+                    player.message("clan.rename.usage")
+                }
+                
+                if (role.priority >= ClanMemberRole.get(Settings.string("actions.disband")).priority) {
+                    player.message("clan.disband.usage")
+                    player.message("clan.admiral.usage")
+                }
+            }
+        }
+    }
 
     object Utils {
         fun inClan(player: Player): Boolean {
@@ -95,6 +188,15 @@ class ClanCommand :
                 true
             } else false
         }
+
+        fun getClanOrSendError(player: Player): ClanModel? {
+            val clan = ClanManager.Members.getClan(player.uniqueId)
+            if (clan == null) {
+                player.message("general.player_not_in_clan")
+                return null
+            }
+            return clan
+        }
     }
 
     /** Создать клан */
@@ -118,7 +220,6 @@ class ClanCommand :
             // Валидация имени клана на соответствие требованиям
             val clanName = args[0]
             if (Utils.isNameInvalid(clanName, player)) return
-
             
             // Создание клана
             val colorlessClanName = removeColors(clanName)
@@ -177,7 +278,7 @@ class ClanCommand :
                 VaultHook.withdraw(player, cost)
                 player.message(
                         "clan.rename.success",
-                        mapOf("oldName" to oldName, "name" to clanName)
+                        mapOf("old_name" to oldName, "name" to clanName)
                 )
             }
         }
@@ -267,7 +368,7 @@ class ClanCommand :
             }
 
             val targetName = args[0]
-            val target = getPlayer(targetName)
+            val target = Bukkit.getPlayer(targetName)
 
             if (target == null) {
                 player.message("general.player_not_found", mapOf("player" to targetName))
@@ -330,22 +431,20 @@ class ClanCommand :
             }
 
             if (ClanManager.removeInvite(clan.id, target.playerUuid)) {
-                player.message(
-                        "clan.cancel.success",
-                        mapOf("player" to target.playerName)
-                )
+                player.message("clan.cancel.success", mapOf("player" to target.playerName))
 
                 // Уведомляем игрока, если он онлайн
-                getPlayer(target.playerUuid)
+                Bukkit.getPlayer(target.playerUuid)
                         ?.message(
                                 "clan.cancel.notify",
-                                mapOf("clan" to clan.name, "player" to target.playerName, "executor" to player.name)
+                                mapOf(
+                                        "clan" to clan.name,
+                                        "player" to target.playerName,
+                                        "executor" to player.name
                         )
-            } else {
-                player.message(
-                        "clan.cancel.not_invited",
-                        mapOf("player" to target.playerName)
                 )
+            } else {
+                player.message("clan.cancel.not_invited", mapOf("player" to target.playerName))
             }
         }
     }
@@ -386,7 +485,7 @@ class ClanCommand :
             player.message("clan.kick.success", mapOf("player" to target.name))
 
             clan.members.forEach {
-                getPlayer(it.uuid)
+                Bukkit.getPlayer(it.uuid)
                         ?.message(
                                 "clan.kick.notify",
                                 mapOf("executor" to player.name, "player" to target.name)
@@ -423,21 +522,57 @@ class ClanCommand :
     class InfoSubcommand : SuperSubcommand(listOf("info", "штащ")) {
         override fun perform(player: Player, args: List<String>) {
             if (args.isEmpty()) {
+                // Показываем информацию о клане игрока
                 if (Utils.notInClan(player)) return
 
                 val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
-                val onlineMembers = clan.members.filter { getPlayer(it.uuid)?.isOnline == true }.size
+                showClanInfo(player, clan)
+            } else {
+                // Показываем информацию о клане указанного игрока
+                val targetName = args[0]
+                val targetPlayer = Bukkit.getOfflinePlayer(targetName)
 
+                if (targetPlayer == null) {
+                    player.message("general.player_not_found", mapOf("player" to targetName))
+                    return
+                }
+
+                val clan = ClanManager.Members.getClan(targetPlayer.uniqueId)
+                if (clan == null) {
+                    player.message("general.player_not_in_clan")
+                    return
+                }
+
+                showClanInfo(player, clan)
+            }
+        }
+
+        private fun showClanInfo(player: Player, clan: ClanModel) {
+            val onlineMembers =
+                    clan.members.filter { Bukkit.getPlayer(it.uuid)?.isOnline == true }.size
+
+            // Рассчитываем общий счет клана
+            val totalScore = ClanManager.Scores.calculateClanScore(clan.id)
+
+            // Получаем позицию клана в топе
                 val clans = ClanManager.clans()
-                val topPosition = clans.sortedByDescending { it.score }.indexOf(clan) + 1
+            val clansWithScores =
+                    clans
+                            .map { c -> Pair(c, ClanManager.Scores.calculateClanScore(c.id)) }
+                            .sortedByDescending { it.second }
+
+            val topPosition = clansWithScores.indexOfFirst { it.first.id == clan.id } + 1
 
                 player.message(
                         "clan.info.info",
                         mapOf(
                             "clan" to clan.name,
-                            "owner" to (getOfflinePlayer(clan.owner).name ?: ""),
-                            "created_at" to clan.createdAt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
-                            "score" to clan.score.toString(),
+                            "owner" to (Bukkit.getOfflinePlayer(clan.owner).name ?: ""),
+                            "created_at" to
+                                    clan.createdAt.format(
+                                            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+                                    ),
+                            "score" to totalScore.toString(),
                             "top_position" to topPosition.toString(),
                             "treasury" to clan.treasury.toString(),
                             "members" to clan.members.size.toString(),
@@ -445,7 +580,6 @@ class ClanCommand :
                             "online" to onlineMembers.toString()
                         )
                 )
-            } else {}
         }
     }
 
@@ -453,16 +587,24 @@ class ClanCommand :
     class TopSubcommand : SuperSubcommand(listOf("top", "ещз")) {
         override fun perform(player: Player, args: List<String>) {
             val clans = ClanManager.clans().toMutableList()
-            clans.sortByDescending { it.score }
+
+            // Рассчитываем общий счет для каждого клана и сортируем
+            val clansWithScores =
+                    clans
+                            .map { clan ->
+                                val totalScore = ClanManager.Scores.calculateClanScore(clan.id)
+                                Pair(clan, totalScore)
+                            }
+                            .sortedByDescending { it.second }
 
             player.message("clan.top.header")
-            clans.take(15).forEachIndexed { index, clan ->
+            clansWithScores.take(15).forEachIndexed { index, (clan, score) ->
                 player.message(
                     "clan.top.format", 
                     mapOf(
                         "index" to (index + 1).toString(),
                         "clan" to clan.name,
-                        "score" to clan.score.toString(),
+                                "score" to score.toString(),
                         "members" to clan.members.size.toString()
                     )
                 )
@@ -473,18 +615,192 @@ class ClanCommand :
 
     /** Посмотреть клановые очки игрока */
     class ScoreSubcommand : SuperSubcommand(listOf("score", "ысщку")) {
-        override fun perform(player: Player, args: List<String>) {}
+        override fun perform(player: Player, args: List<String>) {
+            if (args.isEmpty()) {
+                // Показываем очки текущего игрока
+                val playerUuid = player.uniqueId
+                val playerScores = ClanManager.Scores.getPlayerScores(playerUuid)
+
+                if (playerScores == null || playerScores.scores.isEmpty()) {
+                    player.message("clan.score.no_scores")
+                    return
+                }
+
+                val scoreEntries = playerScores.scores.entries.sortedByDescending { it.value }
+
+                player.message("clan.score.header", mapOf("player" to player.name))
+                scoreEntries.forEach { (type, score) ->
+                    player.message(
+                            "clan.score.format",
+                            mapOf("type" to type, "score" to score.toString())
+                    )
+                }
+                player.message("clan.score.footer", mapOf("count" to scoreEntries.size.toString()))
+            } else {
+                // Показываем очки указанного игрока
+                val targetName = args[0]
+
+                // Ищем игрока по имени
+                val targetPlayer = Bukkit.getOfflinePlayer(targetName)
+                if (targetPlayer == null) {
+                    player.message("clan.score.player_not_found", mapOf("player" to targetName))
+                    return
+                }
+
+                val targetUuid = targetPlayer.uniqueId
+                val playerScores = ClanManager.Scores.getPlayerScores(targetUuid)
+
+                if (playerScores == null || playerScores.scores.isEmpty()) {
+                    player.message("clan.score.no_scores_other", mapOf("player" to targetName))
+                    return
+                }
+
+                val scoreEntries = playerScores.scores.entries.sortedByDescending { it.value }
+
+                player.message("clan.score.header", mapOf("player" to targetName))
+                scoreEntries.forEach { (type, score) ->
+                    player.message(
+                            "clan.score.format",
+                            mapOf("type" to type, "score" to score.toString())
+                    )
+                }
+                player.message("clan.score.footer", mapOf("count" to scoreEntries.size.toString()))
+            }
+        }
     }
 
     /** Список лучших игроков клана */
     class TopMembersSubcommand : SuperSubcommand(listOf("topmembers", "ещзьуьиукы", "tm", "еь")) {
-        override fun perform(player: Player, args: List<String>) {}
+        override fun perform(player: Player, args: List<String>) {
+            if (Utils.notInClan(player)) return
+
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+            val scoreType = if (args.isNotEmpty()) args[0] else "total"
+
+            if (scoreType == "total") {
+                // Показываем топ по общему количеству очков
+                val memberScores = ClanManager.Scores.getClanMembersScores(clan.id)
+                val sortedMembers =
+                        memberScores
+                                .map { scoreModel ->
+                                    Pair(scoreModel.playerName, scoreModel.scores.values.sum())
+                                }
+                                .sortedByDescending { it.second }
+                                .take(10)
+
+                player.message(
+                        "clan.topmembers.header",
+                        mapOf("clan" to clan.name, "type" to "общим")
+                )
+                sortedMembers.forEachIndexed { index, (name, score) ->
+                    player.message(
+                            "clan.topmembers.format",
+                            mapOf(
+                                    "index" to (index + 1).toString(),
+                                    "player" to name,
+                                    "score" to score.toString()
+                            )
+                    )
+                }
+                player.message(
+                        "clan.topmembers.footer",
+                        mapOf("count" to clan.members.size.toString())
+                )
+            } else {
+                // Показываем топ по конкретному типу очков
+                val topMembers = ClanManager.Scores.getClanTopByScoreType(clan.id, scoreType, 10)
+
+                player.message(
+                        "clan.topmembers.header",
+                        mapOf("clan" to clan.name, "type" to scoreType)
+                )
+                topMembers.forEachIndexed { index, (name, score) ->
+                    player.message(
+                            "clan.topmembers.format",
+                            mapOf(
+                                    "index" to (index + 1).toString(),
+                                    "player" to name,
+                                    "score" to score.toString()
+                            )
+                    )
+                }
+                player.message(
+                        "clan.topmembers.footer",
+                        mapOf("count" to clan.members.size.toString())
+                )
+            }
+        }
     }
 
     /** Список худших игроков клана */
     class AntiTopMembersSubcommand :
             SuperSubcommand(listOf("antitopmembers", "ытешещзьуьиукы", "atm", "феь")) {
-        override fun perform(player: Player, args: List<String>) {}
+        override fun perform(player: Player, args: List<String>) {
+            if (Utils.notInClan(player)) return
+
+            val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+            val scoreType = if (args.isNotEmpty()) args[0] else "total"
+
+            if (scoreType == "total") {
+                // Показываем антитоп по общему количеству очков
+                val memberScores = ClanManager.Scores.getClanMembersScores(clan.id)
+                val sortedMembers =
+                        memberScores
+                                .map { scoreModel ->
+                                    Pair(scoreModel.playerName, scoreModel.scores.values.sum())
+                                }
+                                .sortedBy { it.second } // Сортируем по возрастанию
+                                .take(10)
+
+                player.message(
+                        "clan.antitopmembers.header",
+                        mapOf("clan" to clan.name, "type" to "общим")
+                )
+                sortedMembers.forEachIndexed { index, (name, score) ->
+                    player.message(
+                            "clan.antitopmembers.format",
+                            mapOf(
+                                    "index" to (index + 1).toString(),
+                                    "player" to name,
+                                    "score" to score.toString()
+                            )
+                    )
+                }
+                player.message(
+                        "clan.antitopmembers.footer",
+                        mapOf("count" to clan.members.size.toString())
+                )
+            } else {
+                // Показываем антитоп по конкретному типу очков
+                val memberScores = ClanManager.Scores.getClanMembersScores(clan.id)
+                val sortedMembers =
+                        memberScores
+                                .map { scoreModel ->
+                                    Pair(scoreModel.playerName, scoreModel.scores[scoreType] ?: 0)
+                                }
+                                .sortedBy { it.second } // Сортируем по возрастанию
+                                .take(10)
+
+                player.message(
+                        "clan.antitopmembers.header",
+                        mapOf("clan" to clan.name, "type" to scoreType)
+                )
+                sortedMembers.forEachIndexed { index, (name, score) ->
+                    player.message(
+                            "clan.antitopmembers.format",
+                            mapOf(
+                                    "index" to (index + 1).toString(),
+                                    "player" to name,
+                                    "score" to score.toString()
+                            )
+                    )
+                }
+                player.message(
+                        "clan.antitopmembers.footer",
+                        mapOf("count" to clan.members.size.toString())
+                )
+            }
+        }
     }
 
     /** Новости клана */
@@ -504,25 +820,65 @@ class ClanCommand :
     /** Список участников клана */
     class ListSubcommand : SuperSubcommand(listOf("list", "дшые")) {
         override fun perform(player: Player, args: List<String>) {
+            if (args.isEmpty()) {
+                // Показываем список участников клана игрока
             if (Utils.notInClan(player)) return
 
             val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
-            val members = clan.members.toList()
-            val roledMembersMap = mutableMapOf<ClanMemberRole, MutableList<String>>()
-            members.forEach {
-                if (roledMembersMap[it.role] == null) roledMembersMap[it.role] = mutableListOf()
+                showClanMembers(player, clan)
+            } else {
+                // Показываем список участников клана указанного игрока
+                val targetName = args[0]
+                val targetPlayer = Bukkit.getOfflinePlayer(targetName)
 
-                roledMembersMap[it.role]?.add(it.name)
+                if (targetPlayer == null) {
+                    player.message("general.player_not_found", mapOf("player" to targetName))
+                    return
+                }
+
+                val clan = ClanManager.Members.getClan(targetPlayer.uniqueId)
+                if (clan == null) {
+                    player.message("general.player_not_in_clan")
+                    return
+                }
+
+                showClanMembers(player, clan)
+            }
+        }
+
+        private fun showClanMembers(player: Player, clan: ClanModel) {
+            val members = clan.members.toList()
+            val roledMembersMap = mutableMapOf<ClanMemberRole, MutableList<Pair<String, Boolean>>>()
+
+            // Группируем участников по ролям и отмечаем их онлайн-статус
+            members.forEach { member ->
+                if (roledMembersMap[member.role] == null) {
+                    roledMembersMap[member.role] = mutableListOf()
+                }
+
+                val isOnline = Bukkit.getPlayer(member.uuid)?.isOnline == true
+                roledMembersMap[member.role]?.add(Pair(member.name, isOnline))
             }
 
             player.message("clan.list.header", mapOf("clan" to clan.name))
-            roledMembersMap.entries.sortedByDescending { it.key.priority }.forEach { (role, names)
-                ->
+
+            // Выводим участников по ролям, сортируя роли по приоритету
+            roledMembersMap.entries.sortedByDescending { it.key.priority }.forEach {
+                    (role, namesList) ->
+                if (namesList.isNotEmpty()) {
+                    // Форматируем имена с цветами в зависимости от онлайн-статуса
+                    val formattedNames =
+                            namesList.joinToString(", ") { (name, isOnline) ->
+                                if (isOnline) "&a$name" else "&c$name"
+                            }
+
                 player.message(
                         "clan.list.format",
-                        mapOf("role" to role.toString(), "names" to names.joinToString(", "))
+                            mapOf("role" to role.role, "names" to formattedNames)
                 )
             }
+            }
+
             player.message("clan.list.footer", mapOf("count" to members.size.toString()))
         }
     }
@@ -530,35 +886,65 @@ class ClanCommand :
     /** Список участников клана в сети */
     class OnlineSubcommand : SuperSubcommand(listOf("online", "щтдшту")) {
         override fun perform(player: Player, args: List<String>) {
+            if (args.isEmpty()) {
+                // Показываем список онлайн участников клана игрока
             if (Utils.notInClan(player)) return
 
             val clan = ClanManager.Members.getClan(player.uniqueId) ?: return
+                showOnlineMembers(player, clan)
+            } else {
+                // Показываем список онлайн участников клана указанного игрока
+                val targetName = args[0]
+                val targetPlayer = Bukkit.getOfflinePlayer(targetName)
+
+                if (targetPlayer == null) {
+                    player.message("general.player_not_found", mapOf("player" to targetName))
+                    return
+                }
+
+                val clan = ClanManager.Members.getClan(targetPlayer.uniqueId)
+                if (clan == null) {
+                    player.message("general.player_not_in_clan")
+                    return
+                }
+
+                showOnlineMembers(player, clan)
+            }
+        }
+
+        private fun showOnlineMembers(player: Player, clan: ClanModel) {
             val members = clan.members.toList()
             val roledMembersMap = mutableMapOf<ClanMemberRole, MutableList<String>>()
-            members.forEach {
-                if (roledMembersMap[it.role] == null) roledMembersMap[it.role] = mutableListOf()
 
-                if (getPlayer(it.uuid)?.isOnline == true) roledMembersMap[it.role]?.add(it.name)
+            // Группируем только онлайн участников по ролям
+            members.forEach { member ->
+                if (Bukkit.getPlayer(member.uuid)?.isOnline == true) {
+                    if (roledMembersMap[member.role] == null) {
+                        roledMembersMap[member.role] = mutableListOf()
+                    }
+
+                    roledMembersMap[member.role]?.add(member.name)
+                }
             }
 
             player.message("clan.online.header", mapOf("clan" to clan.name))
-            roledMembersMap.entries.sortedByDescending { it.key.priority }.forEach { (role, names)
-                ->
+
+            // Выводим онлайн участников по ролям, сортируя роли по приоритету
+            roledMembersMap.entries.sortedByDescending { it.key.priority }.forEach {
+                    (role, namesList) ->
+                if (namesList.isNotEmpty()) {
+                    // Все имена зеленые, так как все онлайн
+                    val formattedNames = namesList.joinToString(", ") { name -> "&a$name" }
+
                 player.message(
                         "clan.online.format",
-                        mapOf("role" to role.toString(), "names" to names.joinToString(", "))
-                )
-            }
-            player.message(
-                    "clan.online.footer",
-                    mapOf(
-                            "count" to
-                                    members
-                                            .filter { getPlayer(it.uuid)?.isOnline == true }
-                                            .size
-                                            .toString()
+                            mapOf("role" to role.role, "names" to formattedNames)
                     )
-            )
+                }
+            }
+
+            val onlineCount = members.count { Bukkit.getPlayer(it.uuid)?.isOnline == true }
+            player.message("clan.online.footer", mapOf("count" to onlineCount.toString()))
         }
     }
 
@@ -595,6 +981,12 @@ class ClanCommand :
             VaultHook.withdraw(player, amount.toDouble())
             ClanManager.addTreasury(clan.id, amount)
             player.message("clan.donate.success", mapOf("amount" to amount.toString()))
+
+            // Добавляем новость в клан
+            val newsMessage =
+                    "[${LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))}] ${player.name} пополнил казну клана на $amount СтарКоинов"
+            clan.news.add(newsMessage)
+            ClanManager.update(clan)
         }
     }
 
@@ -679,7 +1071,36 @@ class ClanCommand :
 
     /** Отправить сообщение в клановый чат */
     class ChatSubcommand : SuperSubcommand(listOf("chat", "срфе")) {
-        override fun perform(player: Player, args: List<String>) {}
+        override fun perform(player: Player, args: List<String>) {
+            // Проверяем, состоит ли игрок в клане
+            val clan = Utils.getClanOrSendError(player) ?: return
+
+            // Проверяем, приобретена ли функция чата
+            if (!clan.chatPurchased) {
+                player.message("clan.chat.not_purchased")
+                return
+            }
+
+            // Проверяем, указано ли сообщение
+            if (args.isEmpty()) {
+                player.message("clan.chat.usage")
+                return
+            }
+
+            // Собираем сообщение из аргументов
+            val message = args.joinToString(" ")
+
+            // Отправляем сообщение всем онлайн-участникам клана
+            clan.members.forEach { member ->
+                val onlinePlayer = Bukkit.getPlayer(member.uuid)
+                if (onlinePlayer != null && onlinePlayer.isOnline) {
+                    onlinePlayer.message(
+                            "clan.chat.format",
+                            mapOf("player" to player.name, "message" to message)
+                    )
+                }
+            }
+        }
     }
 
     /** Отправить приглашение в пати всем соклановцам */

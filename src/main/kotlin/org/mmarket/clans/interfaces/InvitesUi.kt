@@ -59,6 +59,8 @@ class InvitesUi(private val player: Player) : Ui {
                         Interfaces.string("player_invites.invite_lore_decline").component()
                     )
                     .asGuiItem { event ->
+                        event.isCancelled = true
+
                         if (event.click == ClickType.LEFT) {
                             ClanManager.Invites.acceptInvite(invite.clanId, player.uniqueId)
                             player.closeInventory()

@@ -11,12 +11,13 @@ abstract class SuperCommand(val names: List<String>, val subcommands: List<Super
     abstract fun help(player: Player);
 
     override fun execute(sender: CommandSender, commandLabel: String, args: Array<out String>?): Boolean {
-        if (args.isNullOrEmpty()) {
+        if (sender !is Player) {
+            getLogger().severe("Команду может исполнить только игрок!")
             return true
         }
 
-        if (sender !is Player) {
-            getLogger().severe("Команду может исполнить только игрок!")
+        if (args.isNullOrEmpty()) {
+            perform(sender, emptyList())
             return true
         }
 

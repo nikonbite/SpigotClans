@@ -1,11 +1,15 @@
 [general]
 no_permission = "&cУ вас недостаточно прав для выполнения данной команды!"
 not_enough_money = "&cВам не хватает &b{amount} СтарКоинов&c."
+not_enough_money_clan = "&cВ казне клана недостаточно средств. Не хватает: &b{amount} СтарКоинов"
 not_in_clan = "&cВы не состоите в клане."
 player_not_in_clan = "&cНа данный момент этот игрок не состоит в клане."
 already_in_clan = "&cВы уже состоите в клане."
 player_already_in_clan = "&cЭтот игрок уже состоит в клане."
 player_not_found = "&cИгрок {player} не найден."
+function_not_purchased = "&cФункция не приобретена. Купить её можно в /clan shop"
+function_already_purchased = "&cФункция уже приобретена."
+purchased_label = "&a&lКУПЛЕНО"
 
 [pending]
 timeout = "&cВремя на принятие решения по действию истекло."
@@ -79,7 +83,7 @@ usage = "&b/clan invites &7-&6 Открыть меню приглашений"
 [clan.info]
 usage = "&b/clan info (клан) &7-&6 Посмореть информацию о клане"
 info = """
-&6Информация о клане “{clan}”&6:
+&6Информация о клане “{clan}&6”:
 &3Адмирал клана: &b{owner}
 &3Дата основания: &b{created_at}
 &3Очки клана: &b{score}
@@ -97,12 +101,24 @@ footer = "&bВсего кланов: {count}"
 
 [clan.score]
 usage = "&b/clan score [игрок] &7-&6 Посмотреть количество клановых очков игрока"
+no_scores = "&cУ вас нет клановых очков."
+no_scores_other = "&cУ игрока {player} нет клановых очков."
+player_not_found = "&cИгрок {player} не найден."
+header = "&bКлановые очки игрока {player}:"
+format = "&b{type}&7:&6 {score} очков"
+footer = "&bВсего типов очков: {count}"
 
 [clan.topmembers]
-usage = "&b/clan topmembers &7-&6 Посмотреть топ лучших участников клана"
+usage = "&b/clan topmembers [тип] &7-&6 Посмотреть топ лучших участников клана"
+header = "&bТоп-10 лучших участников клана {clan} по {type} очкам:"
+format = "&b{index}&7:&6 {player} &7-&6 {score} очков"
+footer = "&bВсего участников: {count}"
 
 [clan.antitopmembers]
-usage = "&b/clan antitopmembers &7-&6 Посмотреть топ худших участников клана"
+usage = "&b/clan antitopmembers [тип] &7-&6 Посмотреть топ худших участников клана"
+header = "&bТоп-10 худших участников клана {clan} по {type} очкам:"
+format = "&b{index}&7:&6 {player} &7-&6 {score} очков"
+footer = "&bВсего участников: {count}"
 
 [clan.news]
 usage = "&b/clan news &7-&6 Посмотреть последние новости клана"
@@ -111,14 +127,14 @@ footer = "&bПоказаны последние {count} новостей"
 
 [clan.list]
 usage = "&b/clan list (игрок) &7-&6 Посмотреть список игроков клана"
-header = "&bСписок участников клана {clan}:"
-format = "&b{role}&7:&6 {names}"
+header = "&6Список игроков клана:"
+format = "&6{role}: {names}"
 footer = "&bВсего участников: {count}"
 
 [clan.online]
 usage = "&b/clan online (игрок) &7-&6 Посмотреть онлайн игроков клана"
-header = "&bСписок онлайн участников клана {clan}:"
-format = "&b{role}&7:&6 {names}"
+header = "&6Соклановцы онлайн:"
+format = "&6{role}: {names}"
 footer = "&bВсего онлайн: {count}"
 
 [clan.admiral]
@@ -126,18 +142,27 @@ usage = "&b/clan admiral [игрок] &7-&6 Передать Адмирала с
 
 [clan.donate]
 usage = "&b/clan donate [сумма] &7-&6 Пополнить казну клана"
+not_in_clan = "&cНужно состоять в клане, чтобы пополнить его казну."
+not_enough_money = "&cНедостаточно СтарКоинов, чтобы выполнить это действие."
+invalid_amount = "&cУкажите корректную сумму для пополнения казны."
+success = "&3Казна клана пополнена на &b{amount} СтарКоинов"
 
 [clan.shop]
 usage = "&b/clan shop &7-&6 Открыть магазин клана"
 
 [clan.promote]
 usage = "&b/clan promote [игрок] &7-&6 Повысить звание соклановца"
+self = "&cВы не можете повысить своё звание."
 
 [clan.demote]
 usage = "&b/clan demote [игрок] &7-&6 Понизить звание соклановца"
+self = "&cВы не можете понизить своё звание."
 
 [clan.chat]
 usage = "&b/clan chat [сообщение] &7-&6 Написать сообщение в чат клана"
+purchased = "&aВы успешно купили клановый чат за &b{cost} СтарКоинов"
+format = "&8[&bКлан&8] &7{player}&8: &f{message}"
+not_purchased = "&cВаш клан не приобрел функцию чата. Купить её можно в /clan shop"
 
 [clan.party]
 usage = "&b/clan party [сообщение] &7-&6 Отправить приглашение в тусовку всем соклановцам"
@@ -147,12 +172,17 @@ usage = "&b/clan motd <set/clear/check> &7-&6 Управление MOTD клан
 usage_set = "&b/clan motd set [1-5] [сообщение] &7-&6 Установить текст на конкретной строке в MOTD"
 usage_clear = "&b/clan motd clear (1-5) &7-&6 Очистить текст на конкретной строке/весь текст в MOTD"
 usage_check = "&b/clan motd check &7-&6 Предварительный просмотр MOTD клана"
+purchased = "&aВы успешно купили MOTD для клана за &b{cost} СтарКоинов"
 
 [clan.ad]
 usage = "&b/clan ad &7-&6 Список кланов, которые купили рекламу"
 
 [clan.ade]
 usage = "&b/clan ade &7-&6 Отредактировать рекламу клана"
+
+[clan.slots]
+purchased = "&aВы успешно купили +{slots} слотов для клана за &b{cost} СтарКоинов"
+max = "&cВы не можете купить больше слотов для клана."
 
 # Административная секция
 

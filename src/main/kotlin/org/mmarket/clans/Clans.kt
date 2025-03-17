@@ -212,6 +212,16 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
                     )
                 """)
+
+                // Создаем таблицу с оценками кланов
+                stmt.execute("""
+                    CREATE TABLE IF NOT EXISTS clan_scores (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        player_uuid BINARY(16),
+                        player_name TEXT,
+                        scores JSON
+                    )
+                """)
             }
         }
         

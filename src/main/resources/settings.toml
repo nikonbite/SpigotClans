@@ -7,10 +7,15 @@ data = "clans"       # База данных
 
 [general]
 action_expire = 30  # Время (в секундах), после которого действие отменится.
+party_command = "/party invite {player}"
 
 [pricing]
-create = 70_000.0   # Создание клана
-rename = 50_000.0   # Переименование клана
+create = 70_000.0     # Создание клана
+rename = 50_000.0     # Переименование клана
+promote = 25_000.0    # Повышение соклановца
+clan_chat = 20_000.0  # Клановый чат
+clan_motd = 50_000.0  # Клановое приветствие
+party = 20_000.0      # Пати-призыв
 
 [permissions]
 create = "clan.create"   # Право на создание клана
@@ -42,28 +47,28 @@ games = [   # Список игр, которые будут доступные 
 
 [slots.initial]
 plus = 5
-cost = 0
+cost = 0.0
 
 [slots.first]
 plus = 5
-cost = 15_000
+cost = 15_000.0
 
 [slots.second]
 plus = 5
-cost = 15_000
+cost = 15_000.0
 
 [slots.third]
 plus = 5
-cost = 15_000
+cost = 15_000.0
 
 [slots.fourth]
 plus = 10
-cost = 30_000
+cost = 30_000.0
 
 [slots.fifth]
 plus = 25
-cost = 75_000
+cost = 75_000.0
 
 [slots.sixth]
 plus = 30
-cost = 100_000
+cost = 100_000.0

@@ -10,9 +10,11 @@ import org.mmarket.clans.system.model.ClanInviteModel
 import org.mmarket.clans.system.model.ClanMemberModel
 import org.mmarket.clans.system.model.ClanMemberRole
 import org.mmarket.clans.system.model.ClanModel
+import org.mmarket.clans.system.model.ClanScoreModel
 import org.mmarket.clans.system.model.ClanSlots
 import org.mmarket.clans.system.table.ClanInvitesTable
 import org.mmarket.clans.system.table.ClanMembersTable
+import org.mmarket.clans.system.table.ClanScoresTable
 import org.mmarket.clans.system.table.ClansTable
 
 /**
@@ -40,6 +42,9 @@ object ClanManager {
 
         // Инициализируем кэш приглашений
         Invites.init()
+        
+        // Инициализируем кэш очков
+        Scores.init()
     }
 
     /**
@@ -197,9 +202,24 @@ object ClanManager {
      * @param amount сумма
      */
     fun addTreasury(clanId: UUID, amount: Long) {
+        // Получаем текущее значение treasury из базы данных
+        val currentTreasury = database.from(ClansTable)
+            .select(ClansTable.treasury)
+            .where { ClansTable.id eq clanId }
+            .map { it[ClansTable.treasury] ?: 0L }
+            .firstOrNull() ?: 0L
+            
+        // Обновляем в базе данных
         database.update(ClansTable) {
-            set(it.treasury, it.treasury + amount)
+            set(it.treasury, currentTreasury + amount)
             where { it.id eq clanId }
+        }
+        
+        // Обновляем кэш
+        val clan = clansCache[clanId]
+        if (clan != null) {
+            clan.treasury += amount
+            clansCache[clanId] = clan
         }
     }
 
@@ -210,9 +230,24 @@ object ClanManager {
      * @param amount сумма
      */
     fun subtractTreasury(clanId: UUID, amount: Long) {
+        // Получаем текущее значение treasury из базы данных
+        val currentTreasury = database.from(ClansTable)
+            .select(ClansTable.treasury)
+            .where { ClansTable.id eq clanId }
+            .map { it[ClansTable.treasury] ?: 0L }
+            .firstOrNull() ?: 0L
+            
+        // Обновляем в базе данных
         database.update(ClansTable) {
-            set(it.treasury, it.treasury - amount)
+            set(it.treasury, currentTreasury - amount)
             where { it.id eq clanId }
+        }
+        
+        // Обновляем кэш
+        val clan = clansCache[clanId]
+        if (clan != null) {
+            clan.treasury -= amount
+            clansCache[clanId] = clan
         }
     }
 
@@ -1196,6 +1231,301 @@ object ClanManager {
 
             // Если клан не найден, возвращаем пустой набор
             return emptySet()
+        }
+    }
+
+    /** Объект для работы с очками кланов */
+    object Scores {
+        /** Ключ - UUID игрока, значение - модель очков */
+        private val scoresCache = mutableMapOf<UUID, ClanScoreModel>()
+        
+        /** Инициализирует кэш очков игроков */
+        fun init() {
+            database.from(ClanScoresTable).select().map { row ->
+                val playerUuid = row[ClanScoresTable.playerUuid]!!
+                val scoreModel = ClanScoreModel(
+                    playerUuid = playerUuid,
+                    playerName = row[ClanScoresTable.playerName]!!,
+                    scores = row[ClanScoresTable.scores] ?: emptyMap()
+                )
+                scoresCache[playerUuid] = scoreModel
+            }
+        }
+        
+        /**
+         * Получает очки игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return модель очков или null, если у игрока нет очков
+         */
+        fun getPlayerScores(playerUuid: UUID): ClanScoreModel? {
+            // Проверяем кэш
+            if (scoresCache.containsKey(playerUuid)) {
+                return scoresCache[playerUuid]
+            }
+            
+            // Если нет в кэше, пробуем загрузить из БД
+            return database.from(ClanScoresTable)
+                .select()
+                .where { ClanScoresTable.playerUuid eq playerUuid }
+                .map { row ->
+                    val scoreModel = ClanScoreModel(
+                        playerUuid = playerUuid,
+                        playerName = row[ClanScoresTable.playerName]!!,
+                        scores = row[ClanScoresTable.scores] ?: emptyMap()
+                    )
+                    scoresCache[playerUuid] = scoreModel
+                    scoreModel
+                }
+                .firstOrNull()
+        }
+        
+        /**
+         * Получает очки игрока для определенного типа
+         *
+         * @param playerUuid UUID игрока
+         * @param scoreType тип очков
+         * @return количество очков или 0, если у игрока нет очков данного типа
+         */
+        fun getPlayerScore(playerUuid: UUID, scoreType: String): Int {
+            val scoreModel = getPlayerScores(playerUuid)
+            return scoreModel?.scores?.get(scoreType) ?: 0
+        }
+        
+        /**
+         * Получает все очки игроков клана
+         *
+         * @param clanId ID клана
+         * @return список моделей очков игроков клана
+         */
+        fun getClanMembersScores(clanId: UUID): List<ClanScoreModel> {
+            val clan = get(clanId) ?: return emptyList()
+            return clan.members.mapNotNull { member -> 
+                getPlayerScores(member.uuid)
+            }
+        }
+        
+        /**
+         * Получает топ игроков клана по определенному типу очков
+         *
+         * @param clanId ID клана
+         * @param scoreType тип очков
+         * @param limit максимальное количество игроков в топе
+         * @return список пар (имя игрока, количество очков)
+         */
+        fun getClanTopByScoreType(clanId: UUID, scoreType: String, limit: Int = 10): List<Pair<String, Int>> {
+            val scores = getClanMembersScores(clanId)
+            return scores
+                .map { it.playerName to (it.scores[scoreType] ?: 0) }
+                .sortedByDescending { it.second }
+                .take(limit)
+        }
+        
+        /**
+         * Рассчитывает общее количество очков клана по определенному типу
+         *
+         * @param clanId ID клана
+         * @param scoreType тип очков (если null, то суммируются все типы)
+         * @return общее количество очков клана
+         */
+        fun calculateClanScore(clanId: UUID, scoreType: String? = null): Long {
+            val clan = get(clanId) ?: return 0
+            val members = clan.members
+            
+            var totalScore = 0L
+            members.forEach { member ->
+                val scoreModel = getPlayerScores(member.uuid)
+                if (scoreModel != null) {
+                    if (scoreType != null) {
+                        totalScore += (scoreModel.scores[scoreType] ?: 0).toLong()
+                    } else {
+                        totalScore += scoreModel.scores.values.sum().toLong()
+                    }
+                }
+            }
+            
+            return totalScore
+        }
+        
+        /**
+         * Добавляет очки игроку (создает запись, если её нет)
+         *
+         * @param playerUuid UUID игрока
+         * @param playerName имя игрока
+         * @param scoreType тип очков
+         * @param amount количество очков
+         */
+        fun addScore(playerUuid: UUID, playerName: String, scoreType: String, amount: Int) {
+            val currentScores = getPlayerScores(playerUuid)
+            
+            if (currentScores == null) {
+                // Создаем новую запись
+                val scores = mapOf(scoreType to amount)
+                
+                database.insert(ClanScoresTable) {
+                    set(it.playerUuid, playerUuid)
+                    set(it.playerName, playerName)
+                    set(it.scores, scores)
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = ClanScoreModel(
+                    playerUuid = playerUuid,
+                    playerName = playerName,
+                    scores = scores
+                )
+            } else {
+                // Обновляем существующую запись
+                val newScores = currentScores.scores.toMutableMap()
+                newScores[scoreType] = (newScores[scoreType] ?: 0) + amount
+                
+                database.update(ClanScoresTable) {
+                    set(it.playerName, playerName) // Обновляем имя на случай, если оно изменилось
+                    set(it.scores, newScores)
+                    where { it.playerUuid eq playerUuid }
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = currentScores.copy(
+                    playerName = playerName,
+                    scores = newScores
+                )
+            }
+        }
+        
+        /**
+         * Вычитает очки у игрока (создает запись с нулевым значением, если её нет)
+         *
+         * @param playerUuid UUID игрока
+         * @param playerName имя игрока
+         * @param scoreType тип очков
+         * @param amount количество очков для вычитания
+         */
+        fun removeScore(playerUuid: UUID, playerName: String, scoreType: String, amount: Int) {
+            val currentScores = getPlayerScores(playerUuid)
+            
+            if (currentScores == null) {
+                // Создаем новую запись с нулевым значением
+                val scores = mapOf(scoreType to 0)
+                
+                database.insert(ClanScoresTable) {
+                    set(it.playerUuid, playerUuid)
+                    set(it.playerName, playerName)
+                    set(it.scores, scores)
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = ClanScoreModel(
+                    playerUuid = playerUuid,
+                    playerName = playerName,
+                    scores = scores
+                )
+            } else {
+                // Обновляем существующую запись
+                val newScores = currentScores.scores.toMutableMap()
+                val currentValue = newScores[scoreType] ?: 0
+                newScores[scoreType] = maxOf(0, currentValue - amount) // Не допускаем отрицательных значений
+                
+                database.update(ClanScoresTable) {
+                    set(it.playerName, playerName) // Обновляем имя на случай, если оно изменилось
+                    set(it.scores, newScores)
+                    where { it.playerUuid eq playerUuid }
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = currentScores.copy(
+                    playerName = playerName,
+                    scores = newScores
+                )
+            }
+        }
+        
+        /**
+         * Устанавливает очки игроку (создает запись, если её нет)
+         *
+         * @param playerUuid UUID игрока
+         * @param playerName имя игрока
+         * @param scoreType тип очков
+         * @param amount количество очков
+         */
+        fun setScore(playerUuid: UUID, playerName: String, scoreType: String, amount: Int) {
+            val currentScores = getPlayerScores(playerUuid)
+            
+            if (currentScores == null) {
+                // Создаем новую запись
+                val scores = mapOf(scoreType to amount)
+                
+                database.insert(ClanScoresTable) {
+                    set(it.playerUuid, playerUuid)
+                    set(it.playerName, playerName)
+                    set(it.scores, scores)
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = ClanScoreModel(
+                    playerUuid = playerUuid,
+                    playerName = playerName,
+                    scores = scores
+                )
+            } else {
+                // Обновляем существующую запись
+                val newScores = currentScores.scores.toMutableMap()
+                newScores[scoreType] = amount
+                
+                database.update(ClanScoresTable) {
+                    set(it.playerName, playerName)
+                    set(it.scores, newScores)
+                    where { it.playerUuid eq playerUuid }
+                }
+                
+                // Обновляем кэш
+                scoresCache[playerUuid] = currentScores.copy(
+                    playerName = playerName,
+                    scores = newScores
+                )
+            }
+        }
+        
+        /**
+         * Сбрасывает очки игрока определенного типа
+         *
+         * @param playerUuid UUID игрока
+         * @param scoreType тип очков
+         * @return true, если очки успешно сброшены
+         */
+        fun resetScore(playerUuid: UUID, scoreType: String): Boolean {
+            val currentScores = getPlayerScores(playerUuid) ?: return false
+            
+            // Обновляем существующую запись
+            val newScores = currentScores.scores.toMutableMap()
+            newScores.remove(scoreType)
+            
+            database.update(ClanScoresTable) {
+                set(it.scores, newScores)
+                where { it.playerUuid eq playerUuid }
+            }
+            
+            // Обновляем кэш
+            scoresCache[playerUuid] = currentScores.copy(scores = newScores)
+            
+            return true
+        }
+        
+        /**
+         * Сбрасывает все очки игрока
+         *
+         * @param playerUuid UUID игрока
+         * @return true, если очки успешно сброшены
+         */
+        fun resetAllScores(playerUuid: UUID): Boolean {
+            val result = database.delete(ClanScoresTable) { it.playerUuid eq playerUuid } > 0
+            
+            // Обновляем кэш
+            if (result) {
+                scoresCache.remove(playerUuid)
+            }
+            
+            return result
         }
     }
 

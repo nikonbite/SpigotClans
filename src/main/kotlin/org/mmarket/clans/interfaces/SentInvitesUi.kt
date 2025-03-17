@@ -20,7 +20,7 @@ import java.util.UUID
  */
 class SentInvitesUi(private val player: Player, private val clanId: UUID) : Ui {    
     val invites = ClanManager.Invites.getClanInviteModels(clanId)
-        .filter { ChronoUnit.DAYS.between(it.createdAt, LocalDateTime.now()) < 7 } // Фильтруем приглашения старше недели
+        .filter { ChronoUnit.DAYS.between(it.createdAt, LocalDateTime.now()) < 7 }
         .sortedByDescending { it.createdAt }
         .toMutableList()
     
@@ -59,6 +59,8 @@ class SentInvitesUi(private val player: Player, private val clanId: UUID) : Ui {
                         Interfaces.string("sent_invites.invite_lore_cancel").component()
                     )
                     .asGuiItem { event ->
+                        event.isCancelled = true
+
                         if (event.click == ClickType.LEFT) {
                             ClanManager.Invites.removeInvite(clanId, invite.playerUuid)
                             player.closeInventory()
