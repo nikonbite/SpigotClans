@@ -2,7 +2,7 @@ package org.mmarket.clans.api.interfaces
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-
+import net.kyori.adventure.text.format.TextDecoration
 /**
  * Утилиты для работы с интерфейсами
  */
@@ -22,7 +22,7 @@ object UiUtils {
      * @return Список компонентов лора
      */
     fun splitLoreToComponents(lore: String): List<Component> {
-        return splitLore(lore).map { LegacyComponentSerializer.legacySection().deserialize(it) }
+        return splitLore(lore).map { LegacyComponentSerializer.legacySection().deserialize(it).decoration(TextDecoration.ITALIC, false) }
     }
     
     /**
@@ -30,6 +30,6 @@ object UiUtils {
      * @return Компонент из строки
      */
     fun String.toComponent(): Component {
-        return LegacyComponentSerializer.legacySection().deserialize(this)
+        return LegacyComponentSerializer.legacySection().deserialize(this).decoration(TextDecoration.ITALIC, false)
     }
 }

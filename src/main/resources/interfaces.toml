@@ -3,6 +3,9 @@
 # Общие настройки
 [common]
 no_invites_item = "PAPER"
+close = "&cЗакрыть"
+previous_page = "&aПредыдущая страница"
+next_page = "&aСледующая страница"
 
 # Интерфейс приглашений для игрока
 [player_invites]
@@ -123,3 +126,108 @@ lore = """
 &3Стоимость: {cost} СтарКоинов
 """
 
+[advertise]
+title = "&6Реклама кланов"
+
+ad_name = "{clan_name}"
+ad_lore = """
+&3Лидер клана: &b{owner}
+&3Всего участников: &b{members} / {max_slots}
+&3Онлайн: &b{online} / {members}
+&3Дата основания: &b{created_at}
+&3Место в топе: &b{top_position}
+&3Вступление: &b{join_type}
+&6До конца рекламы: &e{remain} 
+"""
+
+create_ad = "&6Купить рекламу"
+create_ad_lore = """
+&3Публикуя клановую рекламу
+&3Вы сможете найти новых участников
+&3Для своего клана, а так же
+&3Оставить краткую информацию о клане
+"""
+
+edit_ad = "&6Редактировать рекламу"
+edit_ad_lore = """
+"""
+
+create_title = "&6Выберите тариф"
+
+edit_title = "&6Редактирование рекламы"
+
+confirm_title = "&6Подтверждение покупки"
+
+confirm_delete_title = "&6Подтверждение удаления"
+
+confirm_purchase_name = "&6Покупка тарифа на &e{tariff} часов &7(&6{cost}&7)"
+confirm_purchase_lore = "&7Вы уверены, что хотите купить этот тариф?"
+
+confirm_delete_name = "&cУдалить рекламу"
+confirm_delete_lore = """
+&3После удаления рекламы
+&bСтарКоины&3 возвращены &cНЕ будут
+"""
+
+cancel_delete_button = "&cОтмена"
+cancel_delete_button_lore = """
+&3Пусть будет :)
+"""
+
+confirm_delete_button = "&aПодтвердить"
+confirm_delete_button_lore = """
+&3После удаления рекламы
+&bСтарКоины&3 возвращены &cНЕ будут
+"""
+
+
+cancel_create_button = "&6Отменить покупку"
+cancel_create_button_lore = """
+&3Подумайте трижды
+&3это хороший способ
+&3продвинуть свой клан!
+"""
+
+confirm_create_button = "&6Приобрести тариф"
+confirm_create_button_lore = """
+&3Приобретая тариф
+&3Ваши &bСтарКоины&3 возвращены
+&3не будут!
+"""
+
+
+ad_info = "&6Информация о рекламе"
+
+edit_text = "&6Редактировать рекламу"
+edit_text_lore = """
+&3Добавить / Изменить информацию \"О клане\"
+&b/clan ad line [1-20] [Текст]
+"""
+
+delete_ad = "&cУдалить рекламу"
+delete_ad_lore = """
+&3После удаления рекламы
+&bСтарКоины&3 возвращены &cНЕ будут
+"""
+
+join_type_title = "&6Выберите тип присоединения"
+
+ad_join_type = "&6Вступление в клан:"
+ad_join_type_lore = """
+{request_color}По заявке &f[ПКМ]
+{open_color}Открытое &f[ЛКМ]
+"""
+
+[advertise.tariff_12]
+name = "&6Тариф на 12 часов"
+lore_1 = """
+&3Стоимость: 
+&b{cost}
+"""
+
+[advertise.tariff_24]
+name = "&6Тариф на 24 часа"
+lore = """
+&3Стоимость: 
+&b{cost}
+"""

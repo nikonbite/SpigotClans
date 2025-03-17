@@ -1,5 +1,6 @@
 package org.mmarket.clans
 
+import java.time.LocalDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -19,11 +20,10 @@ import org.mmarket.clans.files.Settings
 import org.mmarket.clans.hook.CitizensHook
 import org.mmarket.clans.hook.PlaceholderApiHook
 import org.mmarket.clans.hook.VaultHook
+import org.mmarket.clans.listener.PlayerJoinListener
+import org.mmarket.clans.system.manager.AdvertisementManager
 import org.mmarket.clans.system.manager.ClanManager
 import org.mmarket.clans.system.table.ClanInvitesTable
-import org.mmarket.clans.system.table.ClanMembersTable
-import org.mmarket.clans.system.table.ClansTable
-import java.time.LocalDateTime
 
 class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     private var loaded = false
@@ -32,7 +32,7 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
     val pluginManager = server.pluginManager
     val commandMap = server.commandMap
     val actionManager = ActionManager(plugin)
-    
+
     // База данных
     lateinit var database: Database
         private set
@@ -49,14 +49,8 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         files()
         hook()
         database()
-        commands(
-            ClanCommand(),
-            CcCommand(),
-            AclanCommand()
-        )
-        listeners(
-
-        )
+        commands(ClanCommand(), CcCommand(), AclanCommand())
+        listeners(PlayerJoinListener())
         jobs()
         clans()
 
@@ -75,16 +69,16 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         loaded = false
     }
 
-
     private fun info() {
         listOf(
-            "=".repeat(50),
-            "$name v${version}",
-            "",
-            "Plugin by mMarket | vk.com/mMarket",
-            "Developer: Nikonbite",
-            "=".repeat(50),
-        ).forEach { logger.info(it) }
+                        "=".repeat(50),
+                        "$name v${version}",
+                        "",
+                        "Plugin by mMarket | vk.com/mMarket",
+                        "Developer: Nikonbite",
+                        "=".repeat(50),
+                )
+                .forEach { logger.info(it) }
     }
 
     private fun files() {
@@ -154,13 +148,14 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         val pass = Settings.string("database.pass")
         val data = Settings.string("database.data")
 
-        database = Database.connect(
-            url = "jdbc:mysql://${host}:${port}/${data}",
-            driver = "com.mysql.cj.jdbc.Driver",
-            user = user,
-            password = pass,
-            dialect = MySqlDialect()
-        )
+        database =
+                Database.connect(
+                        url = "jdbc:mysql://${host}:${port}/${data}",
+                        driver = "com.mysql.cj.jdbc.Driver",
+                        user = user,
+                        password = pass,
+                        dialect = MySqlDialect()
+                )
 
         logger.info("$prefix Соединение с базой данных установлено.")
 
@@ -169,7 +164,8 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         database.useConnection { conn ->
             conn.createStatement().use { stmt ->
                 // Создаем таблицу кланов
-                stmt.execute("""
+                stmt.execute(
+                        """
                     CREATE TABLE IF NOT EXISTS clans (
                         id BINARY(16) PRIMARY KEY,
                         name VARCHAR(256) UNIQUE,
@@ -186,10 +182,12 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         motd_purchased BOOLEAN DEFAULT FALSE,
                         party_purchased BOOLEAN DEFAULT FALSE
                     )
-                """)
-                
+                """
+                )
+
                 // Создаем таблицу участников клана
-                stmt.execute("""
+                stmt.execute(
+                        """
                     CREATE TABLE IF NOT EXISTS clan_members (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         clan_id BINARY(16),
@@ -199,10 +197,12 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         joined_at DATETIME,
                         FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
                     )
-                """)
-                
+                """
+                )
+
                 // Создаем таблицу приглашений в клан
-                stmt.execute("""
+                stmt.execute(
+                        """
                     CREATE TABLE IF NOT EXISTS clan_invites (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         clan_id BINARY(16),
@@ -211,20 +211,39 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
                         created_at DATETIME,
                         FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
                     )
-                """)
+                """
+                )
 
                 // Создаем таблицу с оценками кланов
-                stmt.execute("""
+                stmt.execute(
+                        """
                     CREATE TABLE IF NOT EXISTS clan_scores (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         player_uuid BINARY(16),
                         player_name TEXT,
                         scores JSON
                     )
-                """)
+                """
+                )
+
+                // Создаем таблицу рекламы кланов
+                stmt.execute(
+                        """
+                    CREATE TABLE IF NOT EXISTS clan_advertisements (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        clan_id BINARY(16),
+                        join_type VARCHAR(50),
+                        tariff VARCHAR(50),
+                        ad_lines TEXT,
+                        created_at DATETIME,
+                        expires_at DATETIME,
+                        FOREIGN KEY (clan_id) REFERENCES clans(id) ON DELETE CASCADE
+                    )
+                """
+                )
             }
         }
-        
+
         logger.info("$prefix Таблицы подготовлены.")
     }
 
@@ -241,6 +260,15 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
             }
         }
         logger.info("$prefix Работа \"Очистка заявок\" запущена.")
+
+        logger.info("$prefix Запускаем работу \"Очистка истекшей рекламы\"...")
+        CoroutineScope(Dispatchers.Default).launch {
+            while (true) {
+                delay(1 * 60 * 60 * 1000) // Проверка каждый час
+                AdvertisementManager.removeExpiredAdvertisements()
+            }
+        }
+        logger.info("$prefix Работа \"Очистка истекшей рекламы\" запущена.")
     }
 
     fun clans() {
@@ -248,6 +276,10 @@ class Clans(val name: String, val version: String, val plugin: ClansPlugin) {
         logger.info("$prefix Идёт загрузка кланов...")
         ClanManager.init(database)
         logger.info("$prefix Кланы успешно загружены.")
+
+        logger.info("$prefix Идёт загрузка рекламы кланов...")
+        AdvertisementManager.init(database)
+        logger.info("$prefix Реклама кланов успешно загружена.")
     }
 
     private fun prefix(name: String) = "( $name ) ::"

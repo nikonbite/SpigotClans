@@ -7,6 +7,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.mmarket.clans.api.interfaces.Ui
+import org.mmarket.clans.api.interfaces.UiUtils
 import org.mmarket.clans.files.Interfaces
 import org.mmarket.clans.files.Messages
 import org.mmarket.clans.files.Settings
@@ -14,6 +15,8 @@ import org.mmarket.clans.hook.VaultHook
 import org.mmarket.clans.system.manager.ClanManager
 import org.mmarket.clans.system.model.ClanSlots
 import org.mmarket.clans.files.Messages.message
+import org.mmarket.clans.api.interfaces.UiUtils.toComponent
+import org.mmarket.clans.api.interfaces.UiUtils.splitLoreToComponents
 
 /**
  * UI для магазина клана. Позволяет игрокам покупать предметы и улучшения для клана
@@ -21,7 +24,7 @@ import org.mmarket.clans.files.Messages.message
 class ClanShopUi(private val player: Player, private val clanId: UUID? = null) : Ui {
     private val clan = clanId ?: ClanManager.Members.getClan(player.uniqueId)?.id
 
-    val gui: Gui = Gui.gui().title(Interfaces.string("clan_shop.title").component()).rows(3).create()
+    val gui: Gui = Gui.gui().title(Interfaces.string("clan_shop.title").toComponent()).rows(3).create()
 
     override fun open() {
         if (clan == null) {
@@ -41,8 +44,8 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
         gui.setItem(
                 4,
                 ItemBuilder.from(Material.GOLD_INGOT)
-                .name(Interfaces.string("clan_shop.treasury.name", "balance" to clanModel.treasury.toString()).component())
-                .lore(splitLore(Interfaces.string("clan_shop.treasury.lore")).map { it.component() })
+                .name(Interfaces.string("clan_shop.treasury.name", "balance" to clanModel.treasury.toString()).toComponent())
+                .lore(UiUtils.splitLoreToComponents(Interfaces.string("clan_shop.treasury.lore")))
                         .asGuiItem { event ->
                             event.isCancelled = true
                         }
@@ -52,8 +55,8 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
         gui.setItem(
                 10,
                 ItemBuilder.from(Material.DIAMOND)
-                .name(Interfaces.string("clan_shop.ads.name").component())
-                .lore(splitLore(Interfaces.string("clan_shop.ads.lore")).map { it.component() })
+                .name(Interfaces.string("clan_shop.ads.name").toComponent())
+                .lore(UiUtils.splitLoreToComponents(Interfaces.string("clan_shop.ads.lore")))
                         .asGuiItem { event ->
                             event.isCancelled = true
                     handleAdsClick()
@@ -62,16 +65,16 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
 
         // Огненный порошок - 16 слот (Клановое приветствие)
         val motdLore = if (clanModel.motdPurchased) {
-            Interfaces.string("clan_shop.motd.lore") + "\n" + purchasedLabel
+            Interfaces.string("clan_shop.motd.lore", "cost" to Settings.double("pricing.clan_motd").toString()) + "\n" + purchasedLabel
         } else {
-            Interfaces.string("clan_shop.motd.lore")
+            Interfaces.string("clan_shop.motd.lore", "cost" to Settings.double("pricing.clan_motd").toString())
         }
         
         gui.setItem(
                 16,
                 ItemBuilder.from(Material.BLAZE_POWDER)
-                .name(Interfaces.string("clan_shop.motd.name", "cost" to Settings.double("pricing.clan_motd").toString()).component())
-                .lore(splitLore(motdLore).map { it.component() })
+                .name(Interfaces.string("clan_shop.motd.name").toComponent())
+                .lore(UiUtils.splitLoreToComponents(motdLore))
                         .asGuiItem { event ->
                             event.isCancelled = true
                     handleMotdClick()
@@ -80,16 +83,16 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
 
         // Яблоко - 18 слот (Клановый чат)
         val chatLore = if (clanModel.chatPurchased) {
-            Interfaces.string("clan_shop.chat.lore") + "\n" + purchasedLabel
+            Interfaces.string("clan_shop.chat.lore", "cost" to Settings.double("pricing.clan_chat").toString()) + "\n" + purchasedLabel
         } else {
-            Interfaces.string("clan_shop.chat.lore")
+            Interfaces.string("clan_shop.chat.lore", "cost" to Settings.double("pricing.clan_chat").toString())
         }
         
         gui.setItem(
                 18,
                 ItemBuilder.from(Material.APPLE)
-                .name(Interfaces.string("clan_shop.chat.name", "cost" to Settings.double("pricing.clan_chat").toString()).component())
-                .lore(splitLore(chatLore).map { it.component() })
+                .name(Interfaces.string("clan_shop.chat.name").toComponent())
+                .lore(UiUtils.splitLoreToComponents(chatLore))
                         .asGuiItem { event ->
                             event.isCancelled = true
                     handleChatClick()
@@ -98,16 +101,16 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
 
         // Мембрана фантома - 20 слот (Пати-призыв)
         val partyLore = if (clanModel.partyPurchased) {
-            Interfaces.string("clan_shop.party.lore") + "\n" + purchasedLabel
+            Interfaces.string("clan_shop.party.lore", "cost" to Settings.double("pricing.party").toString()) + "\n" + purchasedLabel
         } else {
-            Interfaces.string("clan_shop.party.lore")
+            Interfaces.string("clan_shop.party.lore", "cost" to Settings.double("pricing.party").toString())
         }
         
         gui.setItem(
                 20,
                 ItemBuilder.from(Material.PHANTOM_MEMBRANE)
-                .name(Interfaces.string("clan_shop.party.name", "cost" to Settings.double("pricing.party").toString()).component())
-                .lore(splitLore(partyLore).map { it.component() })
+                .name(Interfaces.string("clan_shop.party.name").toComponent())
+                .lore(UiUtils.splitLoreToComponents(partyLore))
                         .asGuiItem { event ->
                             event.isCancelled = true
                     handlePartyClick()
@@ -152,8 +155,8 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
                 ItemBuilder.from(Material.HEART_OF_THE_SEA)
                 .name(Interfaces.string("clan_shop.slots.name", mapOf(
                     "level" to slotLevel.toString()
-                )).component())
-                .lore(splitLore(finalSlotsLore).map { it.component() })
+                )).toComponent())
+                .lore(UiUtils.splitLoreToComponents(finalSlotsLore))
                         .asGuiItem { event ->
                             event.isCancelled = true
                     handleSlotsClick()
@@ -164,8 +167,8 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
         gui.setItem(
                 24,
                 ItemBuilder.from(Material.QUARTZ)
-                .name(Interfaces.string("clan_shop.upgrade.name", "cost" to Settings.double("pricing.promote").toString()).component())
-                .lore(splitLore(Interfaces.string("clan_shop.upgrade.lore")).map { it.component() })
+                .name(Interfaces.string("clan_shop.upgrade.name", "cost" to Settings.double("pricing.promote").toString()).toComponent())
+                .lore(UiUtils.splitLoreToComponents(Interfaces.string("clan_shop.upgrade.lore")))
                         .asGuiItem { event ->
                             event.isCancelled = true
                         }
@@ -175,8 +178,8 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
         gui.setItem(
                 26,
                 ItemBuilder.from(Material.JUNGLE_SIGN)
-                .name(Interfaces.string("clan_shop.rename.name", "cost" to Settings.double("pricing.rename").toString()).component())
-                .lore(splitLore(Interfaces.string("clan_shop.rename.lore")).map { it.component() })
+                .name(Interfaces.string("clan_shop.rename.name", "cost" to Settings.double("pricing.rename").toString()).toComponent())
+                .lore(UiUtils.splitLoreToComponents(Interfaces.string("clan_shop.rename.lore")))
                         .asGuiItem { event ->
                             event.isCancelled = true
                 }
@@ -184,19 +187,10 @@ class ClanShopUi(private val player: Player, private val clanId: UUID? = null) :
     }
 
     /**
-     * Разделяет многострочный лор на список строк
-     * @param lore Многострочный лор
-     * @return Список строк лора
-     */
-    private fun splitLore(lore: String): List<String> {
-        return lore.split("\n")
-    }
-
-    /**
      * Обработчик клика по рекламе клана
      */
     private fun handleAdsClick() {
-        
+        AdvertiseUi(player).open()
     }
 
     /**

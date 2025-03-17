@@ -13,6 +13,7 @@ import org.mmarket.clans.system.manager.ClanManager
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import net.kyori.adventure.text.format.TextDecoration
 
 /**
  * UI для отображения отправленных приглашений в клан
@@ -35,7 +36,9 @@ class SentInvitesUi(private val player: Player, private val clanId: UUID) : Ui {
                 4,
                 ItemBuilder.from(Material.valueOf(Interfaces.string("common.no_invites_item")))
                     .name(Interfaces.string("sent_invites.no_invites_text").component())
-                    .asGuiItem()
+                    .asGuiItem { event ->
+                        event.isCancelled = true
+                    }
             )
             gui.open(player)
             return
@@ -75,5 +78,5 @@ class SentInvitesUi(private val player: Player, private val clanId: UUID) : Ui {
         gui.open(player)
     }
 
-    fun String.component() = LegacyComponentSerializer.legacySection().deserialize(this)
+    fun String.component() = LegacyComponentSerializer.legacySection().deserialize(this).decoration(TextDecoration.ITALIC, false)   
 } 

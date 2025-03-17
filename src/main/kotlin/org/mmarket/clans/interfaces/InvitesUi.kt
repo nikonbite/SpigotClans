@@ -3,6 +3,7 @@ package org.mmarket.clans.interfaces
 import dev.triumphteam.gui.builder.item.ItemBuilder
 import dev.triumphteam.gui.guis.Gui
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Material
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
@@ -32,7 +33,9 @@ class InvitesUi(private val player: Player) : Ui {
                 4,
                 ItemBuilder.from(Material.valueOf(Interfaces.string("common.no_invites_item")))
                     .name(Interfaces.string("player_invites.no_invites_text").component())
-                    .asGuiItem()
+                    .asGuiItem { event ->
+                        event.isCancelled = true
+                    }
             )
             gui.open(player)
             return
@@ -79,5 +82,5 @@ class InvitesUi(private val player: Player) : Ui {
         gui.open(player)
     }
 
-    fun String.component() = LegacyComponentSerializer.legacySection().deserialize(this)
+    fun String.component() = LegacyComponentSerializer.legacySection().deserialize(this).decoration(TextDecoration.ITALIC, false)
 }

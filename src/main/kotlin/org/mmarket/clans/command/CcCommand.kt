@@ -37,7 +37,7 @@ class CcCommand : SuperCommand(listOf("cc", "сс"), listOf()) {
             if (onlinePlayer != null && onlinePlayer.isOnline) {
                 onlinePlayer.message(
                         "clan.chat.format",
-                        mapOf("player" to player.name, "message" to message),
+                        mapOf("player" to player.name, "message" to message, "clan" to clan.name)
                 )
             }
         }

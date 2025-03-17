@@ -355,6 +355,7 @@ object ClanManager {
         return result
     }
 
+
     /**
      * Обновляет роль участника клана
      *
@@ -1178,6 +1179,18 @@ object ClanManager {
                         )
                     }
                     .firstOrNull()
+        }
+
+        fun update(clanId: UUID, member: ClanMemberModel) {
+            database.update(ClanMembersTable) {
+                set(it.role, member.role)
+                set(it.name, member.name)
+                set(it.joinedAt, member.joinedAt)
+                set(it.uuid, member.uuid)
+                where { it.uuid eq member.uuid }
+            }
+
+            membersCache[member.uuid] = Pair(clanId, member)
         }
 
         /**

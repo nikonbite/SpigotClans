@@ -59,4 +59,23 @@ object Settings {
     fun array(key: String): TomlArray {
         return settings.getArrayOrEmpty(key)
     }
+
+    /**
+     * Получает список строк из массива в настройках
+     * @param key ключ настройки
+     * @return список строк или пустой список, если настройка не найдена
+     */
+    fun getStringList(key: String): List<String> {
+        val array = array(key)
+        val result = mutableListOf<String>()
+        
+        for (i in 0 until array.size()) {
+            val value = array.getString(i)
+            if (value != null) {
+                result.add(value)
+            }
+        }
+        
+        return result
+    }
 }
